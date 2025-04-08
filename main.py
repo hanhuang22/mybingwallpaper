@@ -25,7 +25,7 @@ def main(run_type):
         date = enddate[:4] + '-' + enddate[4:6] + '-' + enddate[6:8]
         title = image.get('title', '')
         copyright_text = image.get('copyright', '')
-        imgtitle = f"{title}  |  {copyright_text}  -  {date}"
+        imgtitle = f"{title}  |  {copyright_text}  -  {enddate[:4] + '/' + enddate[4:6] + '/' + enddate[6:8]}"
         
         # Format the image URL to UHD.jpg
         urlbase = image.get('urlbase', '')
