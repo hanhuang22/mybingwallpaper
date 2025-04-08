@@ -11,6 +11,9 @@
 #include <QTimer>
 #include <QEvent>
 #include <QProgressDialog>
+#include <QtNetwork/QNetworkReply>
+#include <QDate>
+#include <QDir>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -28,6 +31,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void moveEvent(QMoveEvent *event) override;
 
 private slots:
     void on_pushButton_clicked();
@@ -47,8 +51,8 @@ private:
     QProgressDialog *loadingDialog;
     bool setWindowsWallpaper(const QString &imagePath);
     bool setLockScreenWallpaper(const QString &imagePath);
-    void setNetworkPic(const QString &date);
-    void setNetworkPic_json(const QString &date);
+    bool setNetworkPic_json(const QString &date);
+    void setNetworkPic(const QString &imgurl);
     
     // System tray related members
     QSystemTrayIcon *trayIcon;
@@ -65,7 +69,7 @@ private:
     void hideLoadingDialog();
     void saveSettings(const QString &key, const bool &value);
     void loadSettings();
-    void moveEvent(QMoveEvent *event) override;
     void updateLoadingDialogPosition();
+    void initNetworkWallpaper();
 };
 #endif // MAINWINDOW_H

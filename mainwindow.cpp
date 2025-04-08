@@ -64,7 +64,6 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     setWindowTitle(tr("必应壁纸"));
-    setNetworkPic_json(ui->calendarWidget->selectedDate().toString("yyyyMMdd"));
 
     // 设置日历最大日期为今天，限制不能选择未来日期
     ui->calendarWidget->setMaximumDate(QDate::currentDate());
@@ -72,28 +71,33 @@ MainWindow::MainWindow(QWidget *parent)
     weekendFormat.setForeground(QBrush(Qt::black));
     ui->calendarWidget->setWeekdayTextFormat(Qt::Saturday, weekendFormat);
     ui->calendarWidget->setWeekdayTextFormat(Qt::Sunday, weekendFormat);
-
-    // 连接信号槽
-    connect(ui->autoStartCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_autoStartCheckBox_stateChanged);
-
-    // 初始化自动更新定时器
-    updateTimer = new QTimer(this);
-    connect(updateTimer, &QTimer::timeout, this, &MainWindow::autoUpdateWallpaper);
-
-    // 连接自动更新复选框信号
-    connect(ui->autoUpdateCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_autoUpdateCheckBox_stateChanged);
-
+    
     // Set window icon
     setWindowIcon(getApplicationIcon());
 
     // Setup system tray icon
     createTrayIcon();
+    // 初始化自动更新定时器
+    updateTimer = new QTimer(this);
+    connect(updateTimer, &QTimer::timeout, this, &MainWindow::autoUpdateWallpaper);
+
+    // 加载设置
+    loadSettings();
+
+    // 检查网络连接并加载壁纸，而不是直接调用
+    initNetworkWallpaper();
+
+    // 连接信号槽
+    connect(ui->autoStartCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_autoStartCheckBox_stateChanged);
+
+    // 连接自动更新复选框信号
+    connect(ui->autoUpdateCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_autoUpdateCheckBox_stateChanged);
 
     // 启动时不显示主窗口
     // show();
 
     // 加载设置
-    loadSettings();
+    // loadSettings();
 }
 
 MainWindow::~MainWindow()
@@ -238,7 +242,7 @@ void MainWindow::on_calendarWidget_selectionChanged()
     setNetworkPic_json(dateString);
 }
 
-void MainWindow::setNetworkPic_json(const QString &date)
+bool MainWindow::setNetworkPic_json(const QString &date)
 {
     QString jsonurl = "https://hanhuang22.github.io/mybingwallpaper/date/"+date+".json";
     QUrl url(jsonurl);
@@ -259,6 +263,8 @@ void MainWindow::setNetworkPic_json(const QString &date)
     // Start the event loop
     loop.exec();
     
+    bool success = false;
+    
     if (reply->error() == QNetworkReply::NoError) {
         QByteArray jsonData = reply->readAll();
         // qDebug() << "jsonData:" << jsonData.toStdString().c_str();
@@ -277,6 +283,7 @@ void MainWindow::setNetworkPic_json(const QString &date)
                         ui->label_2->setText(imgtitle);
                         ui->label_2->adjustSize();
                         setNetworkPic(currentImgUrl);
+                        success = true;
                     } else {
                         ui->label_2->setText(tr("获取图片信息失败"));
                     }
@@ -293,6 +300,7 @@ void MainWindow::setNetworkPic_json(const QString &date)
                     ui->label_2->setText(imgtitle);
                     ui->label_2->adjustSize();
                     setNetworkPic(currentImgUrl);
+                    success = true;
                 } else {
                     ui->label_2->setText(tr("获取图片信息失败"));
                 }
@@ -307,6 +315,7 @@ void MainWindow::setNetworkPic_json(const QString &date)
     }
     
     reply->deleteLater();
+    return success;
 }
 
 void MainWindow::setNetworkPic(const QString &imgurl)
@@ -420,15 +429,7 @@ void MainWindow::on_pushButton_2_clicked()
 void MainWindow::on_autoStartCheckBox_stateChanged(int state)
 {
     bool enable = (state == Qt::Checked);
-    if (setAutoStart(enable)) {
-        // 设置成功，不做任何提示
-    } else {
-        // 设置失败，提示用户
-        QMessageBox::warning(this, tr("错误"),
-                            tr("无法设置开机自启动，请检查应用程序权限！"));
-        // 恢复复选框状态，防止UI状态与实际状态不一致
-        ui->autoStartCheckBox->setChecked(isAutoStartEnabled());
-    }
+    setAutoStart(enable);
     // 保存设置
     saveSettings("autoStart", ui->autoStartCheckBox->isChecked());
 }
@@ -565,5 +566,63 @@ bool MainWindow::setLockScreenWallpaper(const QString &imagePath)
     }
     
     return success;
+}
+
+void MainWindow::initNetworkWallpaper()
+{
+    // 创建网络连接检查定时器
+    QTimer *networkCheckTimer = new QTimer(this);
+    
+    // 定义网络检查函数对象
+    auto checkNetworkConnection = [this, networkCheckTimer]() {
+        // 创建测试网络请求
+        QNetworkRequest request(QUrl("https://www.bing.com"));
+        QNetworkReply *testReply = networkManager->head(request);
+        
+        // 创建一个事件循环等待网络请求完成
+        QEventLoop loop;
+        connect(testReply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        loop.exec();
+        
+        bool isConnected = (testReply->error() == QNetworkReply::NoError);
+        testReply->deleteLater();
+        
+        if (isConnected) {
+            // 网络连接成功，尝试加载壁纸
+            bool wallpaperLoaded = setNetworkPic_json(ui->calendarWidget->selectedDate().toString("yyyyMMdd"));
+            
+            if (wallpaperLoaded) {
+                // 壁纸加载成功，停止定时器
+                networkCheckTimer->stop();
+                
+                // 如果启用了自动更新，则执行一次更新
+                if (ui->autoUpdateCheckBox->isChecked()) {
+                    autoUpdateWallpaper();
+                }
+                
+                // 删除定时器
+                networkCheckTimer->deleteLater();
+                
+                qDebug() << "Network connection established, wallpaper loaded successfully";
+            } else {
+                // 壁纸加载失败，但网络连接正常，可能是服务器问题
+                qDebug() << "Network connected but wallpaper loading failed, will retry...";
+            }
+        } else {
+            // 网络连接失败，继续等待
+            qDebug() << "Waiting for network connection...";
+        }
+        
+        return isConnected;
+    };
+    
+    // 连接槽函数，每次定时器触发时检查网络
+    connect(networkCheckTimer, &QTimer::timeout, this, checkNetworkConnection);
+    
+    // 启动定时器，每5秒检查一次网络连接
+    networkCheckTimer->start(5000);
+    
+    // 立即进行一次检查
+    QTimer::singleShot(0, this, checkNetworkConnection);
 }
 
