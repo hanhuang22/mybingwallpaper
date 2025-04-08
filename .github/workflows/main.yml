@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           persist-credentials: false
+          ref: wallpaperarchiv
 
       - name: 'Set up Python'
         uses: actions/setup-python@v1
@@ -26,7 +27,6 @@ jobs:
         run: |
           git config --local user.email "han.huang@cripac.ia.ac.cn"
           git config --local user.name "github-actions[bot]"
-          git checkout wallpaperarchiv
 
       - name: 'Install requirements'
         run: |
