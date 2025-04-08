@@ -469,7 +469,20 @@ bool MainWindow::isAutoStartEnabled()
     QSettings settings("HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
                        QSettings::NativeFormat);
 
-    return settings.contains("MyBingWallpaper");
+    // Check if the key exists
+    if (!settings.contains("MyBingWallpaper")) {
+        return false;
+    }
+    
+    // Get the current value from registry
+    QString registryPath = settings.value("MyBingWallpaper").toString();
+    
+    // Get application's full path and normalize it (replace forward slashes with backslashes)
+    QString appPath = QApplication::applicationFilePath();
+    appPath.replace("/", "\\");
+    
+    // Return true only if the paths match
+    return registryPath == appPath;
 }
 
 void MainWindow::on_autoUpdateCheckBox_stateChanged(int state)
