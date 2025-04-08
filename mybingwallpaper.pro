@@ -27,3 +27,4 @@ RESOURCES += \
     resource.qrc
 
 RC_ICONS = mybingwallpaper.ico
+RC_FILE = main.rc

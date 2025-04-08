@@ -36,7 +36,7 @@
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>20</y>
+      <y>10</y>
       <width>240</width>
       <height>190</height>
      </rect>
@@ -74,7 +74,7 @@
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>240</y>
+      <y>220</y>
       <width>75</width>
       <height>24</height>
      </rect>
@@ -87,7 +87,7 @@
     <property name="geometry">
      <rect>
       <x>520</x>
-      <y>240</y>
+      <y>220</y>
       <width>75</width>
       <height>24</height>
      </rect>
@@ -99,10 +99,10 @@
    <widget class="QLabel" name="label">
     <property name="geometry">
      <rect>
-      <x>10</x>
+      <x>20</x>
       <y>10</y>
       <width>400</width>
-      <height>240</height>
+      <height>225</height>
      </rect>
     </property>
     <property name="text">
@@ -112,7 +112,7 @@
    <widget class="QLabel" name="label_2">
     <property name="geometry">
      <rect>
-      <x>10</x>
+      <x>20</x>
       <y>250</y>
       <width>400</width>
       <height>16</height>
@@ -140,7 +140,7 @@
    <widget class="QCheckBox" name="autoStartCheckBox">
     <property name="geometry">
      <rect>
-      <x>610</x>
+      <x>600</x>
       <y>260</y>
       <width>75</width>
       <height>24</height>
@@ -153,14 +153,27 @@
    <widget class="QCheckBox" name="autoUpdateCheckBox">
     <property name="geometry">
      <rect>
-      <x>610</x>
-      <y>230</y>
-      <width>71</width>
+      <x>520</x>
+      <y>260</y>
+      <width>75</width>
       <height>24</height>
      </rect>
     </property>
     <property name="text">
      <string>自动更新</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="checkBox">
+    <property name="geometry">
+     <rect>
+      <x>440</x>
+      <y>260</y>
+      <width>75</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>锁屏壁纸</string>
     </property>
    </widget>
   </widget>

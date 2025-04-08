@@ -61,6 +61,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
     , networkManager(new QNetworkAccessManager(this))
     , loadingDialog(nullptr)
+    , setLockScreenWallpaper_enabled(false)
 {
     ui->setupUi(this);
     setWindowTitle(tr("必应壁纸"));
@@ -92,6 +93,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 连接自动更新复选框信号
     connect(ui->autoUpdateCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_autoUpdateCheckBox_stateChanged);
+
+    // 连接锁屏壁纸复选框信号 
+    connect(ui->checkBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_checkBox_stateChanged);
 
     // 启动时不显示主窗口
     // show();
@@ -376,6 +380,11 @@ void MainWindow::on_pushButton_clicked()
         QMessageBox::warning(this, "错误", "无法设置桌面壁纸,请检查网络连接!");
     }
     
+    // If lock screen wallpaper is enabled, set it directly too (in case setWindowsWallpaper didn't set it)
+    if (setLockScreenWallpaper_enabled && desktopResult) {
+        setLockScreenWallpaper(currentImgPath);
+    }
+    
     if (isVisible()) {
         hideLoadingDialog();
     }
@@ -495,11 +504,39 @@ void MainWindow::loadSettings()
 {
     QString configPath = QApplication::applicationDirPath() + "/mybing.conf";
     QSettings settings(configPath, QSettings::IniFormat);
+    
+    // 检查是否为首次启动
+    bool isFirstRun = settings.value("firstRun", true).toBool();
+    if (isFirstRun) {
+        // 如果是首次启动，显示窗口
+        show();
+        // 标记为非首次启动
+        settings.setValue("firstRun", false);
+    }
+    
+    // 检查开机启动配置与实际状态是否一致
+    bool shouldAutoStart = settings.value("autoStart", false).toBool();
+    bool currentlyAutoStart = isAutoStartEnabled();
+    
+    // 如果配置文件设置了不自动启动，但实际上注册表中存在启动项，则清除注册表项
+    if (!shouldAutoStart && currentlyAutoStart) {
+        setAutoStart(false);
+    }
+    // 反之，如果配置文件设置了自动启动，但实际上注册表中不存在启动项，则添加注册表项
+    else if (shouldAutoStart && !currentlyAutoStart) {
+        setAutoStart(true);
+    }
+    
+    // 根据配置更新UI
+    ui->autoStartCheckBox->setChecked(shouldAutoStart);
+    
     if (settings.value("autoUpdate", false).toBool()) {
         ui->autoUpdateCheckBox->setChecked(true);
     }
-    if (settings.value("autoStart", false).toBool()) {
-        ui->autoStartCheckBox->setChecked(true);
+    
+    if (settings.value("setLockScreenWallpaper_enabled", false).toBool()) {
+        setLockScreenWallpaper_enabled = true;
+        ui->checkBox->setChecked(true);
     }
 
     // 如果自动更新被启用，启动定时器
@@ -526,8 +563,13 @@ bool MainWindow::setWindowsWallpaper(const QString &imagePath)
         SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
     );
 
-    bool lockScreenSet = setLockScreenWallpaper(imagePath);
-    // qDebug() << "lockScreenSet:" << lockScreenSet;
+    // Only set lock screen wallpaper if enabled
+    bool lockScreenSet = false;
+    if (setLockScreenWallpaper_enabled) {
+        lockScreenSet = setLockScreenWallpaper(imagePath);
+        // qDebug() << "lockScreenSet:" << lockScreenSet;
+    }
+    
     // Return true if at least the desktop wallpaper was set successfully
     return result != 0;
 }
@@ -624,5 +666,63 @@ void MainWindow::initNetworkWallpaper()
     
     // 立即进行一次检查
     QTimer::singleShot(0, this, checkNetworkConnection);
+}
+
+void MainWindow::on_checkBox_stateChanged(int state)
+{
+    setLockScreenWallpaper_enabled = (state == Qt::Checked);
+    
+    if (!setLockScreenWallpaper_enabled) {
+        // If checkbox is unchecked, clear the lock screen wallpaper
+        bool clearResult = clearLockScreenWallpaper();
+        if (!clearResult) {
+            // Show a warning message if clearing fails, but don't change checkbox state
+            QMessageBox::warning(this, tr("警告"), tr("清除锁屏壁纸失败，可能需要管理员权限。"));
+        } else {
+            // Optional: Show success message
+            // QMessageBox::information(this, tr("成功"), tr("已清除锁屏壁纸设置。"));
+        }
+    } else if (!currentImgPath.isEmpty()) {
+        // If checkbox is checked and we have a current image, set it as lock screen
+        bool setResult = setLockScreenWallpaper(currentImgPath);
+        if (!setResult) {
+            // Show a warning message if setting fails
+            QMessageBox::warning(this, tr("警告"), tr("设置锁屏壁纸失败，可能需要管理员权限。"));
+            // Uncheck the box since we couldn't set it
+            ui->checkBox->blockSignals(true);
+            ui->checkBox->setChecked(false);
+            ui->checkBox->blockSignals(false);
+            setLockScreenWallpaper_enabled = false;
+        }
+    }
+    
+    // 保存设置
+    saveSettings("setLockScreenWallpaper_enabled", setLockScreenWallpaper_enabled);
+}
+
+bool MainWindow::clearLockScreenWallpaper()
+{
+    // Create registry key: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP
+    QSettings settings("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PersonalizationCSP", 
+                       QSettings::NativeFormat);
+    
+    bool success = true;
+    
+    try {
+        // Remove the lock screen image path
+        settings.remove("LockScreenImagePath");
+        
+        // Remove the lock screen image URL
+        settings.remove("LockScreenImageUrl");
+        
+        // Set the status to disabled (0)
+        settings.setValue("LockScreenImageStatus", 0);
+    }
+    catch (...) {
+        // If any error occurs, return false
+        success = false;
+    }
+    
+    return success;
 }
 

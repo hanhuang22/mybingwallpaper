@@ -41,6 +41,7 @@ private slots:
     void exitApplication();
     void on_autoStartCheckBox_stateChanged(int state);
     void on_autoUpdateCheckBox_stateChanged(int state);
+    void on_checkBox_stateChanged(int state);
     void autoUpdateWallpaper();
 
 private:
@@ -49,8 +50,10 @@ private:
     QString currentImgUrl;
     QString currentImgPath;
     QProgressDialog *loadingDialog;
+    bool setLockScreenWallpaper_enabled;
     bool setWindowsWallpaper(const QString &imagePath);
     bool setLockScreenWallpaper(const QString &imagePath);
+    bool clearLockScreenWallpaper();
     bool setNetworkPic_json(const QString &date);
     void setNetworkPic(const QString &imgurl);
     
