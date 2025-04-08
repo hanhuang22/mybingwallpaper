@@ -1,0 +1,41 @@
+name: Get bing wallpaper Every Day.
+on:
+  schedule:
+    # * is a special character in YAML so you have to quote this string
+    - cron:  '30 0 * * *'  
+  workflow_dispatch:
+  repository_dispatch:
+    types:
+      - GetBingWallpaper
+
+jobs:
+  GetBingWallpaper:
+    name: GetBingWallpaper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+
+      - name: 'Set up Python'
+        uses: actions/setup-python@v1
+        with:
+           python-version: 3.12
+
+      - name: 'Install requirements'
+        run: |
+          pip install -r ./requirements.txt
+
+      - name: "GIT CONFIG SETUP"
+        run: |
+          git config --local user.email "han.huang@cripac.ia.ac.cn"
+          git config --local user.name "github-actions[bot]"
+
+      - name: 'Get bing wallpaper'
+        run: python ./main.py
+
+
+      - name: 'Commit bing wallpaper files'
+        run: |
+          git add .
+          git commit -m "GitHub Actions Crawler bing wallpaper at $(date +'%Y-%m-%d %H:%M:%S')"
