@@ -16,7 +16,9 @@
 
 - 2019/05/09及之前为1080P，之后为4K图像
 
-- 设为壁纸：桌面壁纸，并通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP；若锁屏壁纸修改不成功，以管理员启动应用后设置；
+- 设为壁纸：桌面壁纸
+
+- 锁屏壁纸：并通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP；取消勾选后同时清除注册表内容
 
 - 保存图片：保存至用户图片文件夹
 
@@ -24,13 +26,12 @@
 
 - 自动更新：点击后立即更新最新壁纸，每15分钟尝试更新一次最新壁纸
 
-- TODO:
-- [ ] 锁屏和壁纸分开设置，并增加清理注册表
-- [ ] 优化启动时的逻辑
 
 ### 🛠️实现方式
 
 利用Github Action (Workflow)，每日定时（16:10 UTC+0，即北京时间0:10）通过bing官方api获取图像标题和url并以json文件储存更新到Github仓库；但由于Github Action的定时任务并不准时，会延迟几分钟；使用Github Page部署作为api访问；点击日历时获取该日期的Github上的json文件，并解析得到图像标题和url，然后本地显示
+
+国内访问github.io可能有问题，改用gitee的同步仓库
 
 ### ⁉️问题
 
