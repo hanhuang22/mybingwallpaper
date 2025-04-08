@@ -6,6 +6,8 @@
 
 ### 🔦使用
 
+- 双击启动/开机启动时启动到托盘，第一次使用点击托盘图标显示主界面
+  
 - 点击关闭，最小化到托盘
 
 - 右击托盘图标，点击退出
@@ -14,7 +16,7 @@
 
 - 2019/05/09及之前为1080P，之后为4K图像
 
-- 设为壁纸：桌面壁纸，并通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP
+- 设为壁纸：桌面壁纸，并通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP；若锁屏壁纸修改不成功，以管理员启动应用后设置；
 
 - 保存图片：保存至用户图片文件夹
 
@@ -22,15 +24,19 @@
 
 - 自动更新：点击后立即更新最新壁纸，每15分钟尝试更新一次最新壁纸
 
+- TODO:
+- [ ] 锁屏和壁纸分开设置，并增加清理注册表
+- [ ] 优化启动时的逻辑
+
 ### 🛠️实现方式
 
-利用Github Action (Workflow)，每日定时（0:30 UTC+0）通过bing官方api获取图像标题和url并以json文件储存更新到Github仓库；使用Github Page部署作为api访问；点击日历时获取该日期的Github上的json文件，并解析得到图像标题和url，然后本地显示
+利用Github Action (Workflow)，每日定时（16:10 UTC+0，即北京时间0:10）通过bing官方api获取图像标题和url并以json文件储存更新到Github仓库；但由于Github Action的定时任务并不准时，会延迟几分钟；使用Github Page部署作为api访问；点击日历时获取该日期的Github上的json文件，并解析得到图像标题和url，然后本地显示
 
 ### ⁉️问题
 
 若出现长时间加载，可能为网络问题，可最小化等待，或尝试重启应用
 
 
-### ❤️感谢：
+### ❤️感谢
 
 2010/01/01-2018/12/30图像数据加载自：[https://bing.ee123.net/](https://bing.ee123.net/)
