@@ -21,6 +21,7 @@
 #include <QFile>
 #include <QMoveEvent>
 #include <QDateTime>
+#include <QJsonArray>
 
 // Helper function to get application icon
 QIcon getApplicationIcon()
@@ -239,32 +240,84 @@ void MainWindow::on_calendarWidget_selectionChanged()
 
 void MainWindow::setNetworkPic_json(const QString &date)
 {
-    QString jsonurl = "https://bing.ee123.net/img/?date="+date+"&type=json&size=4K";
+    QString jsonurl = "https://hanhuang22.github.io/mybingwallpaper/date/"+date+".json";
     QUrl url(jsonurl);
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    
     QEventLoop loop;
-
-    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
-    //请求结束并下载完成后，退出子事件循环
-    QObject::connect(reply, SIGNAL(finished()), &loop, SLOT(quit()));
-    //开启子事件循环
+    QNetworkReply *reply = networkManager->get(request);
+    
+    // Connect to handle errors
+    connect(reply, &QNetworkReply::errorOccurred, [&](QNetworkReply::NetworkError error) {
+        qDebug() << "Network error:" << error << reply->errorString();
+    });
+    
+    // Connect to exit the event loop when finished
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    
+    // Start the event loop
     loop.exec();
-
-    QByteArray jsonData = reply->readAll();
-    QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonData);
-    QJsonObject jsonObj = jsonDoc.object();
-    QString imgtitle=jsonObj["imgtitle"].toString();
-    currentImgUrl=jsonObj["imgurl"].toString();
-    ui->label_2->setText(date+" "+imgtitle);
-    ui->label_2->adjustSize();
-    setNetworkPic(currentImgUrl);
+    
+    if (reply->error() == QNetworkReply::NoError) {
+        QByteArray jsonData = reply->readAll();
+        // qDebug() << "jsonData:" << jsonData.toStdString().c_str();
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonData);
+        
+        if (!jsonDoc.isNull()) {
+            if (jsonDoc.isArray()) {
+                // Handle array format [{}]
+                QJsonArray jsonArray = jsonDoc.array();
+                if (!jsonArray.isEmpty() && jsonArray.at(0).isObject()) {
+                    QJsonObject jsonObj = jsonArray.at(0).toObject();
+                    QString imgtitle = jsonObj["imgtitle"].toString();
+                    currentImgUrl = jsonObj["imgurl"].toString();
+                    
+                    if (!imgtitle.isEmpty() && !currentImgUrl.isEmpty()) {
+                        ui->label_2->setText(imgtitle);
+                        ui->label_2->adjustSize();
+                        setNetworkPic(currentImgUrl);
+                    } else {
+                        ui->label_2->setText(tr("获取图片信息失败"));
+                    }
+                } else {
+                    ui->label_2->setText(tr("JSON数组为空或格式错误"));
+                }
+            } else if (jsonDoc.isObject()) {
+                // Handle direct object format {}
+                QJsonObject jsonObj = jsonDoc.object();
+                QString imgtitle = jsonObj["imgtitle"].toString();
+                currentImgUrl = jsonObj["imgurl"].toString();
+                
+                if (!imgtitle.isEmpty() && !currentImgUrl.isEmpty()) {
+                    ui->label_2->setText(imgtitle);
+                    ui->label_2->adjustSize();
+                    setNetworkPic(currentImgUrl);
+                } else {
+                    ui->label_2->setText(tr("获取图片信息失败"));
+                }
+            } else {
+                ui->label_2->setText(tr("JSON格式不支持"));
+            }
+        } else {
+            ui->label_2->setText(tr("JSON数据解析失败"));
+        }
+    } else {
+        ui->label_2->setText(tr("网络请求失败: ") + reply->errorString());
+    }
+    
     reply->deleteLater();
 }
 
 void MainWindow::setNetworkPic(const QString &imgurl)
 {
     // showLoadingDialog();
-
-    QUrl url(imgurl+"&w=480");
+    QUrl url;
+    if (imgurl.contains("bing.com")) {
+        url = QUrl(imgurl+"&w=480");
+    } else {
+        url = QUrl(imgurl);
+    }
     QEventLoop loop;
 
     // qDebug() << "Reading picture form " << url;
