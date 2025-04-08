@@ -24,13 +24,13 @@
 
 ### 🛠️实现方式
 
-利用Github Action (Workflow)，每日定时（0:30 UTC+0）通过bing官方api获取图像标题和url并以json文件储存更新到Github仓库；使用Github Page部署作为api访问；点击日历时获取该日期的Github上的json文件，并解析得到图像标题和url，然后本地显示
+利用Github Action (Workflow)，每日定时（16:10 UTC+0，即北京时间0:10）通过bing官方api获取图像标题和url并以json文件储存更新到Github仓库；但由于Github Action的定时任务并不准时，会延迟几分钟；使用Github Page部署作为api访问；点击日历时获取该日期的Github上的json文件，并解析得到图像标题和url，然后本地显示
 
 ### ⁉️问题
 
 若出现长时间加载，可能为网络问题，可最小化等待，或尝试重启应用
 
 
-### ❤️感谢：
+### ❤️感谢
 
 2010/01/01-2018/12/30图像数据加载自：[https://bing.ee123.net/](https://bing.ee123.net/)
