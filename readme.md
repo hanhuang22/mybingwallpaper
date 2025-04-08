@@ -16,13 +16,17 @@
 
 - 2019/05/09及之前为1080P，之后为4K图像
 
-- 设为壁纸：桌面壁纸，并通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP
+- 设为壁纸：桌面壁纸，并通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP；若锁屏壁纸修改不成功，以管理员启动应用后设置；
 
 - 保存图片：保存至用户图片文件夹
 
 - 开机启动：将程序添加到注册表：HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
 
 - 自动更新：点击后立即更新最新壁纸，每15分钟尝试更新一次最新壁纸
+
+- TODO:
+- [ ] 锁屏和壁纸分开设置，并增加清理注册表
+- [ ] 优化启动时的逻辑
 
 ### 🛠️实现方式
 
