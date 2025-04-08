@@ -248,7 +248,8 @@ void MainWindow::on_calendarWidget_selectionChanged()
 
 bool MainWindow::setNetworkPic_json(const QString &date)
 {
-    QString jsonurl = "https://hanhuang22.github.io/mybingwallpaper/date/"+date+".json";
+    // QString jsonurl = "https://hanhuang22.github.io/mybingwallpaper/date/"+date+".json";
+    QString jsonurl = "https://gitee.com/Hyman25/mybingwallpaper/raw/wallpaperarchiv/date/"+date+".json";
     QUrl url(jsonurl);
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
