@@ -240,10 +240,38 @@ void MainWindow::hideLoadingDialog()
 
 void MainWindow::on_calendarWidget_selectionChanged()
 {
+    // Disable buttons and calendar to prevent additional clicks
+    ui->pushButton->setEnabled(false);
+    ui->pushButton_2->setEnabled(false);
+    ui->calendarWidget->setEnabled(false);
+    ui->autoUpdateCheckBox->setEnabled(false);
+    ui->autoStartCheckBox->setEnabled(false);
+    ui->checkBox->setEnabled(false);
+    
+    // Show loading dialog
+    if (isVisible()) {
+        showLoadingDialog();
+    }
+    
     QDate selectedDate = ui->calendarWidget->selectedDate();
     QString dateString = selectedDate.toString("yyyyMMdd");
     ui->label_2->setText(dateString);
-    setNetworkPic_json(dateString);
+    
+    // Set the wallpaper and wait for it to complete
+    bool success = setNetworkPic_json(dateString);
+    
+    // Re-enable buttons and calendar
+    ui->pushButton->setEnabled(true);
+    ui->pushButton_2->setEnabled(true);
+    ui->calendarWidget->setEnabled(true);
+    ui->autoUpdateCheckBox->setEnabled(true);
+    ui->autoStartCheckBox->setEnabled(true);
+    ui->checkBox->setEnabled(true);
+    
+    // Hide loading dialog
+    if (isVisible()) {
+        hideLoadingDialog();
+    }
 }
 
 bool MainWindow::setNetworkPic_json(const QString &date)
@@ -386,6 +414,10 @@ void MainWindow::on_pushButton_clicked()
         setLockScreenWallpaper(currentImgPath);
     }
     
+    // Save the currently selected date
+    QDate selectedDate = ui->calendarWidget->selectedDate();
+    saveSettings("lastSelectedDate", selectedDate.toString("yyyyMMdd"));
+    
     if (isVisible()) {
         hideLoadingDialog();
     }
@@ -490,8 +522,9 @@ void MainWindow::on_autoUpdateCheckBox_stateChanged(int state)
     if (state == Qt::Checked) {
         // 启动定时器，设置间隔为15分钟（900000毫秒）
         updateTimer->start(15*60*1000);
-        // 立即执行一次更新
-        autoUpdateWallpaper();
+        // // 立即执行一次更新
+        // autoUpdateWallpaper();
+        // ui->calendarWidget->setSelectedDate(QDate::currentDate());
     } else {
         // 停止定时器
         updateTimer->stop();
@@ -504,10 +537,12 @@ void MainWindow::autoUpdateWallpaper()
 {
     // 模拟点击"设为壁纸"按钮
     ui->calendarWidget->setSelectedDate(QDate::currentDate());
-    on_pushButton_clicked();
+    QTimer::singleShot(1000, this, [this]() {
+        on_pushButton_clicked();
+    });
 }
 
-void MainWindow::saveSettings(const QString &key, const bool &value)
+void MainWindow::saveSettings(const QString &key, const QVariant &value)
 {
     QString configPath = QApplication::applicationDirPath() + "/mybing.conf";
     QSettings settings(configPath, QSettings::IniFormat);
@@ -553,9 +588,22 @@ void MainWindow::loadSettings()
         ui->checkBox->setChecked(true);
     }
 
-    // 如果自动更新被启用，启动定时器
-    if (ui->autoUpdateCheckBox->isChecked()) {
-        updateTimer->start(15*60*1000);
+    // // 如果自动更新被启用，启动定时器
+    // if (ui->autoUpdateCheckBox->isChecked()) {
+    //     updateTimer->start(15*60*1000);
+    // }
+    
+    // 恢复上次选择的日期
+    QString savedDate = settings.value("lastSelectedDate", "").toString();
+    if (!savedDate.isEmpty()) {
+        QDate date = QDate::fromString(savedDate, "yyyyMMdd");
+        if (date.isValid()) {
+            // 设置日历控件的日期
+            ui->calendarWidget->setSelectedDate(date);
+        }
+    } else {
+        // 如果没有保存的日期，默认选择今天
+        ui->calendarWidget->setSelectedDate(QDate::currentDate());
     }
 }
 
@@ -652,9 +700,9 @@ void MainWindow::initNetworkWallpaper()
                 networkCheckTimer->stop();
                 
                 // 如果启用了自动更新，则执行一次更新
-                if (ui->autoUpdateCheckBox->isChecked()) {
-                    autoUpdateWallpaper();
-                }
+                // if (ui->autoUpdateCheckBox->isChecked()) {
+                //     autoUpdateWallpaper();
+                // }
                 
                 // 删除定时器
                 networkCheckTimer->deleteLater();

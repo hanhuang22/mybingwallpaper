@@ -14,6 +14,7 @@
 #include <QtNetwork/QNetworkReply>
 #include <QDate>
 #include <QDir>
+#include <QVariant>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -70,7 +71,7 @@ private:
     bool isAutoStartEnabled();
     void showLoadingDialog();
     void hideLoadingDialog();
-    void saveSettings(const QString &key, const bool &value);
+    void saveSettings(const QString &key, const QVariant &value);
     void loadSettings();
     void updateLoadingDialogPosition();
     void initNetworkWallpaper();
