@@ -176,6 +176,19 @@
      <string>锁屏壁纸</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pushButton_3">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>220</y>
+      <width>75</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>随机壁纸</string>
+    </property>
+   </widget>
   </widget>
  </widget>
  <resources/>

@@ -37,6 +37,7 @@ protected:
 private slots:
     void on_pushButton_clicked();
     void on_pushButton_2_clicked();
+    void on_pushButton_3_clicked();
     void on_calendarWidget_selectionChanged();
     void trayIconActivated(QSystemTrayIcon::ActivationReason reason);
     void exitApplication();
@@ -44,6 +45,7 @@ private slots:
     void on_autoUpdateCheckBox_stateChanged(int state);
     void on_checkBox_stateChanged(int state);
     void autoUpdateWallpaper();
+    void randomUpdateWallpaper();
 
 private:
     Ui::MainWindow *ui;
