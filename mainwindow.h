@@ -60,6 +60,11 @@ private:
     bool setNetworkPic_json(const QString &date);
     void setNetworkPic(const QString &imgurl);
     
+    // Image download and application methods
+    void downloadAndSetWallpaper();
+    void downloadAndSaveWallpaper();
+    bool downloadImage();
+    
     // System tray related members
     QSystemTrayIcon *trayIcon;
     QMenu *trayIconMenu;
@@ -67,6 +72,7 @@ private:
     
     // Timer for auto update
     QTimer *updateTimer;
+    void resetUpdateTimer();
     
     void createTrayIcon();
     bool setAutoStart(bool enable);
@@ -77,5 +83,10 @@ private:
     void loadSettings();
     void updateLoadingDialogPosition();
     void initNetworkWallpaper();
+    void updateCalendarMaximumDate();
+    
+    // New methods for UI management
+    void disableUI();
+    void enableUI();
 };
 #endif // MAINWINDOW_H

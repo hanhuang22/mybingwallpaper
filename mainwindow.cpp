@@ -68,7 +68,7 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle(tr("必应壁纸"));
 
     // 设置日历最大日期为今天，限制不能选择未来日期
-    ui->calendarWidget->setMaximumDate(QDate::currentDate());
+    updateCalendarMaximumDate();
     QTextCharFormat weekendFormat;
     weekendFormat.setForeground(QBrush(Qt::black));
     ui->calendarWidget->setWeekdayTextFormat(Qt::Saturday, weekendFormat);
@@ -111,6 +111,11 @@ MainWindow::~MainWindow()
         updateTimer->stop();
     }
     delete ui;
+}
+
+void MainWindow::resetUpdateTimer()
+{
+    updateTimer->start(5*1000);
 }
 
 void MainWindow::createTrayIcon()
@@ -239,20 +244,44 @@ void MainWindow::hideLoadingDialog()
     }
 }
 
-void MainWindow::on_calendarWidget_selectionChanged()
+void MainWindow::disableUI()
 {
-    // Disable buttons and calendar to prevent additional clicks
+    // Disable buttons and controls
     ui->pushButton->setEnabled(false);
     ui->pushButton_2->setEnabled(false);
+    ui->pushButton_3->setEnabled(false);
     ui->calendarWidget->setEnabled(false);
     ui->autoUpdateCheckBox->setEnabled(false);
     ui->autoStartCheckBox->setEnabled(false);
     ui->checkBox->setEnabled(false);
     
-    // Show loading dialog
+    // Show loading dialog if main window is visible
     if (isVisible()) {
         showLoadingDialog();
     }
+}
+
+void MainWindow::enableUI()
+{
+    // Re-enable buttons and controls
+    ui->pushButton->setEnabled(true);
+    ui->pushButton_2->setEnabled(true);
+    ui->pushButton_3->setEnabled(true);
+    ui->calendarWidget->setEnabled(true);
+    ui->autoUpdateCheckBox->setEnabled(true);
+    ui->autoStartCheckBox->setEnabled(true);
+    ui->checkBox->setEnabled(true);
+    
+    // Hide loading dialog if main window is visible
+    if (isVisible()) {
+        hideLoadingDialog();
+    }
+}
+
+void MainWindow::on_calendarWidget_selectionChanged()
+{
+    // Disable UI components
+    disableUI();
     
     QDate selectedDate = ui->calendarWidget->selectedDate();
     QString dateString = selectedDate.toString("yyyyMMdd");
@@ -261,22 +290,14 @@ void MainWindow::on_calendarWidget_selectionChanged()
     // Set the wallpaper and wait for it to complete
     bool success = setNetworkPic_json(dateString);
     
-    // Re-enable buttons and calendar
-    ui->pushButton->setEnabled(true);
-    ui->pushButton_2->setEnabled(true);
-    ui->calendarWidget->setEnabled(true);
-    ui->autoUpdateCheckBox->setEnabled(true);
-    ui->autoStartCheckBox->setEnabled(true);
-    ui->checkBox->setEnabled(true);
-    
-    // Hide loading dialog
-    if (isVisible()) {
-        hideLoadingDialog();
-    }
+    // Re-enable UI components
+    enableUI();
 }
 
 bool MainWindow::setNetworkPic_json(const QString &date)
 {
+    updateTimer->stop();
+
     // QString jsonurl = "https://hanhuang22.github.io/mybingwallpaper/date/"+date+".json";
     QString jsonurl = "https://gitee.com/Hyman25/mybingwallpaper/raw/wallpaperarchiv/date/"+date+".json";
     QUrl url(jsonurl);
@@ -349,12 +370,12 @@ bool MainWindow::setNetworkPic_json(const QString &date)
     }
     
     reply->deleteLater();
+    resetUpdateTimer();
     return success;
 }
 
 void MainWindow::setNetworkPic(const QString &imgurl)
 {
-    // showLoadingDialog();
     QUrl url;
     if (imgurl.contains("bing.com")) {
         url = QUrl(imgurl+"&w=480");
@@ -376,101 +397,20 @@ void MainWindow::setNetworkPic(const QString &imgurl)
     QPixmap dest=pixmap.scaled(ui->label->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation);
     ui->label->setPixmap(dest);
     reply->deleteLater();
-
-    // hideLoadingDialog();
 }
 
 void MainWindow::on_pushButton_clicked()
 {
-    if (isVisible()) {
-        showLoadingDialog();
-    }
-    QUrl url(currentImgUrl);
-    QEventLoop loop;
+    disableUI();
+    downloadAndSetWallpaper();
+    enableUI();
+}
 
-    // qDebug() << "Reading picture form " << url;
-    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
-    //请求结束并下载完成后，退出子事件循环
-    QObject::connect(reply, SIGNAL(finished()), &loop, SLOT(quit()));
-    //开启子事件循环
-    loop.exec();
-
-    // 检查网络请求是否成功
-    if (reply->error() != QNetworkReply::NoError) {
-        QMessageBox::warning(this, "错误", "下载壁纸失败: " + reply->errorString());
-        reply->deleteLater();
-        if (isVisible()) {
-            hideLoadingDialog();
-        }
-        return;
-    }
-
-    QByteArray jpegData = reply->readAll();
-    QPixmap currentPixmap;
-    if (!currentPixmap.loadFromData(jpegData)) {
-        QMessageBox::warning(this, "错误", "壁纸图片数据无效!");
-        reply->deleteLater();
-        if (isVisible()) {
-            hideLoadingDialog();
-        }
-        return;
-    }
-
-    // 创建唯一的临时文件名
-    QString tempFileName = QString("wallpaper_temp_%1.jpg").arg(QDateTime::currentMSecsSinceEpoch());
-    QString tempPath = QDir::tempPath() + "/" + tempFileName;
-    
-    // 先保存到带有临时名称的文件
-    if (!currentPixmap.save(tempPath, "JPG")) {
-        QMessageBox::warning(this, "错误", "无法保存壁纸图片!");
-        reply->deleteLater();
-        if (isVisible()) {
-            hideLoadingDialog();
-        }
-        return;
-    }
-    
-    // 最终的壁纸文件路径
-    QString finalPath = QDir::tempPath() + "/wallpaper.jpg";
-    
-    // 删除已存在的最终文件（如果有）
-    QFile finalFile(finalPath);
-    if (finalFile.exists()) {
-        finalFile.remove();
-    }
-    
-    // 将临时文件重命名为最终文件
-    QFile tempFile(tempPath);
-    if (!tempFile.rename(finalPath)) {
-        QMessageBox::warning(this, "错误", "无法重命名壁纸文件!");
-        reply->deleteLater();
-        if (isVisible()) {
-            hideLoadingDialog();
-        }
-        return;
-    }
-    
-    currentImgPath = finalPath;
-
-    // 设置为壁纸
-    bool desktopResult = setWindowsWallpaper(currentImgPath);
-    if (!desktopResult) {
-        QMessageBox::warning(this, "错误", "无法设置桌面壁纸,请检查权限!");
-    }
-    
-    // If lock screen wallpaper is enabled, set it directly too (in case setWindowsWallpaper didn't set it)
-    if (setLockScreenWallpaper_enabled && desktopResult) {
-        setLockScreenWallpaper(currentImgPath);
-    }
-    
-    // Save the currently selected date
-    QDate selectedDate = ui->calendarWidget->selectedDate();
-    saveSettings("lastSelectedDate", selectedDate.toString("yyyyMMdd"));
-    
-    reply->deleteLater();
-    if (isVisible()) {
-        hideLoadingDialog();
-    }
+void MainWindow::on_pushButton_2_clicked()
+{
+    disableUI();
+    downloadAndSaveWallpaper();
+    enableUI();
 }
 
 void MainWindow::on_pushButton_3_clicked()
@@ -478,37 +418,28 @@ void MainWindow::on_pushButton_3_clicked()
     randomUpdateWallpaper();
 }
 
-void MainWindow::on_pushButton_2_clicked()
+void MainWindow::downloadAndSetWallpaper()
 {
-    if (isVisible()) {
-        showLoadingDialog();
-    }
-
-    QUrl url(currentImgUrl);
-    QEventLoop loop;
-
-    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
-    connect(reply, SIGNAL(finished()), &loop, SLOT(quit()));
-    loop.exec();
-
-    // 检查网络请求是否成功
-    if (reply->error() != QNetworkReply::NoError) {
-        QMessageBox::warning(this, "错误", "下载图片失败: " + reply->errorString());
-        reply->deleteLater();
-        if (isVisible()) {
-            hideLoadingDialog();
-        }
+    if (!downloadImage()) {
         return;
     }
 
-    QByteArray jpegData = reply->readAll();
-    QPixmap currentPixmap;
-    if (!currentPixmap.loadFromData(jpegData)) {
-        QMessageBox::warning(this, "错误", "图片数据无效!");
-        reply->deleteLater();
-        if (isVisible()) {
-            hideLoadingDialog();
-        }
+    // 设置为壁纸
+    bool desktopResult = setWindowsWallpaper(currentImgPath);
+    
+    // If lock screen wallpaper is enabled, set it directly too
+    if (setLockScreenWallpaper_enabled && desktopResult) {
+        setLockScreenWallpaper(currentImgPath);
+    }
+    
+    // Save the currently selected date
+    QDate selectedDate = ui->calendarWidget->selectedDate();
+    saveSettings("lastSelectedDate", selectedDate.toString("yyyyMMdd"));
+}
+
+void MainWindow::downloadAndSaveWallpaper()
+{
+    if (!downloadImage()) {
         return;
     }
 
@@ -524,43 +455,75 @@ void MainWindow::on_pushButton_2_clicked()
         dir.mkpath(".");
     }
 
-    // 创建临时文件名
-    QString tempFileName = QString("temp_%1.jpg").arg(QDateTime::currentMSecsSinceEpoch());
-    QString tempFilePath = dir.filePath(tempFileName);
-    
     // 最终文件名
     QString finalFilePath = dir.filePath(QString("mybingwallpaper-%1.jpg").arg(dateStr));
     
-    // 先保存到临时文件
-    if (!currentPixmap.save(tempFilePath, "JPG")) {
-        QMessageBox::warning(this, tr("错误"), tr("保存图片失败!"));
-        reply->deleteLater();
-        if (isVisible()) {
-            hideLoadingDialog();
-        }
-        return;
-    }
+    // Copy the temporary file to the Pictures directory
+    QFile::copy(currentImgPath, finalFilePath);
+
+    QMessageBox::information(this, tr("成功"), tr("图片已保存至:\n%1").arg(finalFilePath));
+}
+
+bool MainWindow::downloadImage()
+{
+    updateTimer->stop();
+
+    QUrl url(currentImgUrl);
+    QEventLoop loop;
+    QTimer timer;
     
-    // 删除可能已存在的同名文件
-    QFile finalFile(finalFilePath);
-    if (finalFile.exists()) {
-        finalFile.remove();
-    }
+    // 设置超时时间为5秒
+    timer.setSingleShot(true);
+    timer.start(5000);
     
-    // 重命名临时文件为最终文件
-    QFile tempFile(tempFilePath);
-    if (tempFile.rename(finalFilePath)) {
-        QMessageBox::information(this, tr("成功"), tr("图片已保存至:\n%1").arg(finalFilePath));
+    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
+    
+    // 连接超时信号和完成信号
+    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    
+    // 开启事件循环
+    loop.exec();
+    
+    // 判断是否超时
+    if (timer.isActive()) {
+        // 未超时，停止计时器
+        timer.stop();
     } else {
-        // 如果重命名失败，临时文件仍然存在，告知用户
-        QMessageBox::warning(this, tr("警告"), 
-            tr("重命名文件失败，图片已保存为临时文件:\n%1").arg(tempFilePath));
+        // 超时处理
+        reply->abort();
+        QMessageBox::warning(this, tr("错误"), tr("下载壁纸超时"));
+        reply->deleteLater();
+        resetUpdateTimer();
+        return false;
     }
 
-    reply->deleteLater();
-    if (isVisible()) {
-        hideLoadingDialog();
+    // 检查网络请求是否成功
+    if (reply->error() != QNetworkReply::NoError) {
+        QMessageBox::warning(this, tr("错误"), tr("下载壁纸失败: ") + reply->errorString());
+        reply->deleteLater();
+        resetUpdateTimer();
+        return false;
     }
+
+    QByteArray jpegData = reply->readAll();
+    QPixmap currentPixmap;
+    if (!currentPixmap.loadFromData(jpegData)) {
+        QMessageBox::warning(this, tr("错误"), tr("壁纸图片数据无效!"));
+        reply->deleteLater();
+        resetUpdateTimer();
+        return false;
+    }
+
+    // 保存到临时文件
+    QString finalPath = QDir::tempPath() + "/mybingwallpaper.jpg";
+    currentPixmap.save(finalPath, "JPG");
+    currentImgPath = finalPath;
+    
+    reply->deleteLater();
+
+    resetUpdateTimer();
+    return true;
 }
 
 void MainWindow::on_autoStartCheckBox_stateChanged(int state)
@@ -616,7 +579,7 @@ void MainWindow::on_autoUpdateCheckBox_stateChanged(int state)
 {
     if (state == Qt::Checked) {
         // 启动定时器，设置间隔为15分钟（900000毫秒）
-        updateTimer->start(15*60*1000);
+        resetUpdateTimer();
         // // 立即执行一次更新
         // autoUpdateWallpaper();
         // ui->calendarWidget->setSelectedDate(QDate::currentDate());
@@ -630,6 +593,8 @@ void MainWindow::on_autoUpdateCheckBox_stateChanged(int state)
 
 void MainWindow::autoUpdateWallpaper()
 {
+    // 更新日历最大日期
+    updateCalendarMaximumDate();
     // 模拟点击"设为壁纸"按钮
     ui->calendarWidget->setSelectedDate(QDate::currentDate());
     QTimer::singleShot(1000, this, [this]() {
@@ -897,3 +862,7 @@ bool MainWindow::clearLockScreenWallpaper()
     return success;
 }
 
+void MainWindow::updateCalendarMaximumDate()
+{
+    ui->calendarWidget->setMaximumDate(QDate::currentDate());
+}
