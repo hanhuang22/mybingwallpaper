@@ -19,6 +19,9 @@ def main(run_type):
     data_list = data["MediaContents"]
     print(f"[{get_now_time()}] 获取到 {len(data_list)} 条数据")
     
+    # Dictionary to store monthly data
+    monthly_data = {}
+    
     # Process each image in the data list
     for image_data in data_list:
         # Extract required values
@@ -38,30 +41,46 @@ def main(run_type):
         
         imgdesc = image_data.get('Description', '')
         
-        # Create the output directory if it doesn't exist
-        os.makedirs('date', exist_ok=True)
+        # Get month key (YYYYMM)
+        month_key = enddate[:6]
         
-        # Create the output file path
-        file_path = os.path.join('date', f"{enddate}.json")
+        # Get day key (YYYYMMDD - full date)
+        day_key = enddate
         
-        # Check if the file already exists
+        # Create or update the monthly data
+        if month_key not in monthly_data:
+            monthly_data[month_key] = {}
+        
+        # Add this day's data to the monthly data
+        monthly_data[month_key][day_key] = {
+            "date": date,
+            "imgtitle": imgtitle,
+            "imgdesc": imgdesc,
+            "imgurl": imgurl
+        }
+    
+    # Create the output directory if it doesn't exist
+    os.makedirs('month', exist_ok=True)
+    
+    # Save each month's data to a separate file
+    for month_key, month_data in monthly_data.items():
+        file_path = os.path.join('month', f"{month_key}.json")
+        
+        # Check if the file already exists and merge with existing data
         if os.path.exists(file_path):
-            print(f"[{get_now_time()}] 文件 {file_path} 已存在，跳过")
-            continue
-        
-        # Prepare the data in the required format
-        output_data = [
-            {
-                "date": date,
-                "imgtitle": imgtitle,
-                "imgdesc": imgdesc,
-                "imgurl": imgurl
-            }
-        ]
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+                # Merge existing data with new data
+                existing_data.update(month_data)
+                month_data = existing_data
+                print(f"[{get_now_time()}] 合并文件 {file_path} 数据")
+            except Exception as e:
+                print(f"[{get_now_time()}] 读取文件 {file_path} 失败: {e}")
         
         # Write the data to the file
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, ensure_ascii=False, indent=2)
+            json.dump(month_data, f, ensure_ascii=False, indent=2)
         
         print(f"[{get_now_time()}] 保存文件 {file_path} 成功")
 
