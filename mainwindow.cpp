@@ -366,62 +366,8 @@ bool MainWindow::setNetworkPic_json(const QString &date)
         } else {
             ui->label_2->setText(tr("JSON数据解析失败"));
         }
-    } else {
-        // 如果在月度文件中找不到该日期，尝试使用旧的单日文件格式作为备选
-        QString oldJsonUrl = "https://gitee.com/Hyman25/mybingwallpaper/raw/wallpaperarchiv/date/" + date + ".json";
-        QUrl oldUrl(oldJsonUrl);
-        QNetworkRequest oldRequest(oldUrl);
-        oldRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-        QEventLoop oldLoop;
-        QNetworkReply *oldReply = networkManager->get(oldRequest);
-        connect(oldReply, &QNetworkReply::finished, &oldLoop, &QEventLoop::quit);
-        oldLoop.exec();
-
-        if (oldReply->error() == QNetworkReply::NoError)
-        {
-            QByteArray oldJsonData = oldReply->readAll();
-            QJsonDocument oldJsonDoc = QJsonDocument::fromJson(oldJsonData);
-
-            if (!oldJsonDoc.isNull() && oldJsonDoc.isArray())
-            {
-                QJsonArray jsonArray = oldJsonDoc.array();
-                if (!jsonArray.isEmpty() && jsonArray.at(0).isObject())
-                {
-                    QJsonObject jsonObj = jsonArray.at(0).toObject();
-                    QString imgtitle = jsonObj["imgtitle"].toString();
-                    currentImgUrl = jsonObj["imgurl"].toString();
-
-                    if (!imgtitle.isEmpty() && !currentImgUrl.isEmpty())
-                    {
-                        ui->label_2->setText(imgtitle);
-                        ui->label_2->adjustSize();
-                        setNetworkPic(currentImgUrl);
-                        success = true;
-                    }
-                    else
-                    {
-                        ui->label_2->setText(tr("获取图片信息失败"));
-                    }
-                }
-                else
-                {
-                    ui->label_2->setText(tr("日期 ") + date + tr(" 的图片数据不存在"));
-                }
-            }
-            else
-            {
-                ui->label_2->setText(tr("日期 ") + date + tr(" 的图片数据不存在"));
-            }
-            oldReply->deleteLater();
-        }
-        else
-        {
-            ui->label_2->setText(tr("日期 ") + date + tr(" 的图片数据不存在"));
-            oldReply->deleteLater();
-        }
-    // } else {
-        // ui->label_2->setText(tr("网络请求失败: ") + reply->errorString());
+    }  else {
+        ui->label_2->setText(tr("网络请求失败: ") + reply->errorString());
     }
 
     reply->deleteLater();
