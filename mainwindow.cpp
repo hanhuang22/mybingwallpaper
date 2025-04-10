@@ -63,6 +63,7 @@ MainWindow::MainWindow(QWidget *parent)
     , networkManager(new QNetworkAccessManager(this))
     , loadingDialog(nullptr)
     , setLockScreenWallpaper_enabled(false)
+    , needAutoClickAfterSelection(false)
 {
     ui->setupUi(this);
     setWindowTitle(tr("必应壁纸"));
@@ -115,7 +116,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::resetUpdateTimer()
 {
-    updateTimer->start(5*1000);
+    updateTimer->start(15*60*1000);
 }
 
 void MainWindow::createTrayIcon()
@@ -287,11 +288,21 @@ void MainWindow::on_calendarWidget_selectionChanged()
     QString dateString = selectedDate.toString("yyyyMMdd");
     ui->label_2->setText(dateString);
     
+    // 保存是否需要自动点击的标志
+    bool shouldAutoClick = needAutoClickAfterSelection;
+    // 重置标志
+    needAutoClickAfterSelection = false;
+    
     // Set the wallpaper and wait for it to complete
     bool success = setNetworkPic_json(dateString);
     
     // Re-enable UI components
     enableUI();
+    
+    // 如果需要自动点击并且网络操作成功，则点击"设为壁纸"按钮
+    if (shouldAutoClick && success) {
+        on_pushButton_clicked();
+    }
 }
 
 bool MainWindow::setNetworkPic_json(const QString &date)
@@ -333,6 +344,9 @@ bool MainWindow::setNetworkPic_json(const QString &date)
                     QJsonObject jsonObj = jsonArray.at(0).toObject();
                     QString imgtitle = jsonObj["imgtitle"].toString();
                     currentImgUrl = jsonObj["imgurl"].toString();
+
+                    // qDebug() << "imgtitle:" << imgtitle;
+                    // qDebug() << "currentImgUrl:" << currentImgUrl;
                     
                     if (!imgtitle.isEmpty() && !currentImgUrl.isEmpty()) {
                         ui->label_2->setText(imgtitle);
@@ -382,6 +396,7 @@ void MainWindow::setNetworkPic(const QString &imgurl)
     } else {
         url = QUrl(imgurl);
     }
+    // qDebug() << "url:" << url;
     QEventLoop loop;
 
     // qDebug() << "Reading picture form " << url;
@@ -471,12 +486,15 @@ bool MainWindow::downloadImage()
     QUrl url(currentImgUrl);
     QEventLoop loop;
     QTimer timer;
+
+    // qDebug() << "currentImgUrl:" << currentImgUrl;
     
     // 设置超时时间为5秒
     timer.setSingleShot(true);
     timer.start(5000);
-    
-    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
+
+    QNetworkRequest request(url);
+    QNetworkReply *reply = networkManager->get(request);
     
     // 连接超时信号和完成信号
     connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
@@ -507,19 +525,19 @@ bool MainWindow::downloadImage()
     }
 
     QByteArray jpegData = reply->readAll();
-    QPixmap currentPixmap;
-    if (!currentPixmap.loadFromData(jpegData)) {
-        QMessageBox::warning(this, tr("错误"), tr("壁纸图片数据无效!"));
+    QString finalPath = QDir::tempPath() + "/mybingwallpaper.jpg";
+    QFile file(finalPath);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(jpegData);
+        file.close();
+        currentImgPath = finalPath;
+    } else {
+        QMessageBox::warning(this, tr("错误"), tr("无法保存壁纸到临时文件!"));
         reply->deleteLater();
         resetUpdateTimer();
         return false;
     }
 
-    // 保存到临时文件
-    QString finalPath = QDir::tempPath() + "/mybingwallpaper.jpg";
-    currentPixmap.save(finalPath, "JPG");
-    currentImgPath = finalPath;
-    
     reply->deleteLater();
 
     resetUpdateTimer();
@@ -578,11 +596,8 @@ bool MainWindow::isAutoStartEnabled()
 void MainWindow::on_autoUpdateCheckBox_stateChanged(int state)
 {
     if (state == Qt::Checked) {
-        // 启动定时器，设置间隔为15分钟（900000毫秒）
+        // 启动定时器
         resetUpdateTimer();
-        // // 立即执行一次更新
-        // autoUpdateWallpaper();
-        // ui->calendarWidget->setSelectedDate(QDate::currentDate());
     } else {
         // 停止定时器
         updateTimer->stop();
@@ -595,11 +610,15 @@ void MainWindow::autoUpdateWallpaper()
 {
     // 更新日历最大日期
     updateCalendarMaximumDate();
-    // 模拟点击"设为壁纸"按钮
-    ui->calendarWidget->setSelectedDate(QDate::currentDate());
-    QTimer::singleShot(1000, this, [this]() {
-        on_pushButton_clicked();
-    });
+    // 设置一个标志，告诉选择变更处理器在网络操作完成后自动点击按钮
+    if (ui->calendarWidget->selectedDate() == QDate::currentDate()) {
+        ui->pushButton->click();
+    } else {
+        needAutoClickAfterSelection = true;
+        // 设置当前日期
+        ui->calendarWidget->setSelectedDate(QDate::currentDate());
+    }
+    
 }
 
 void MainWindow::randomUpdateWallpaper()
@@ -608,12 +627,11 @@ void MainWindow::randomUpdateWallpaper()
     QDate startDate = QDate(2010, 1, 1);
     QDate endDate = QDate::currentDate();
     QDate randomDate = startDate.addDays(QRandomGenerator::global()->bounded(startDate.daysTo(endDate)));
+    
+    // 设置一个标志，告诉选择变更处理器在网络操作完成后自动点击按钮
+    needAutoClickAfterSelection = true;
     // 设置日历控件的日期
     ui->calendarWidget->setSelectedDate(randomDate);
-    // 模拟点击"设为壁纸"按钮
-    QTimer::singleShot(1000, this, [this]() {
-        on_pushButton_clicked();
-    });
 }
 
 void MainWindow::saveSettings(const QString &key, const QVariant &value)
@@ -700,9 +718,8 @@ bool MainWindow::setWindowsWallpaper(const QString &imagePath)
     );
 
     // Only set lock screen wallpaper if enabled
-    bool lockScreenSet = false;
     if (setLockScreenWallpaper_enabled) {
-        lockScreenSet = setLockScreenWallpaper(imagePath);
+        setLockScreenWallpaper(imagePath);
         // qDebug() << "lockScreenSet:" << lockScreenSet;
     }
     
@@ -742,6 +759,13 @@ bool MainWindow::setLockScreenWallpaper(const QString &imagePath)
         success = false;
 
     }
+
+    // 检测是否设置成功
+    if (settings.value("LockScreenImageStatus", 0).toInt() == 1) {
+        success = true;
+    } else {
+        success = false;
+    }
     
     return success;
 }
@@ -772,13 +796,6 @@ void MainWindow::initNetworkWallpaper()
             if (wallpaperLoaded) {
                 // 壁纸加载成功，停止定时器
                 networkCheckTimer->stop();
-                
-                // 如果启用了自动更新，则执行一次更新
-                // if (ui->autoUpdateCheckBox->isChecked()) {
-                //     autoUpdateWallpaper();
-                // }
-                
-                // 删除定时器
                 networkCheckTimer->deleteLater();
                 
                 qDebug() << "Network connection established, wallpaper loaded successfully";

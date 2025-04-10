@@ -54,6 +54,7 @@ private:
     QString currentImgPath;
     QProgressDialog *loadingDialog;
     bool setLockScreenWallpaper_enabled;
+    bool needAutoClickAfterSelection = false;
     bool setWindowsWallpaper(const QString &imagePath);
     bool setLockScreenWallpaper(const QString &imagePath);
     bool clearLockScreenWallpaper();
