@@ -1,4 +1,4 @@
-## <img src="mybingwallpaper.ico" width="32"> 必应壁纸 - QT实现
+## <img src="mybingwallpaper.ico" width="32"> 必应壁纸 - My Bing Wallpaer
 
 ### 🏠软件界面
 
@@ -23,9 +23,11 @@
 
 ### 🛠️实现方式
 
-- 利用Github Action (Workflow)，每日定时（16:10 UTC+0，即北京时间0:10）通过bing官方api获取图像标题和url并以json文件储存更新到Github仓库；但由于Github Action的定时任务并不准时，会延迟几分钟；使用Github Page部署作为api访问；点击日历时获取该日期的Github上的json文件，并解析得到图像标题和url，然后本地显示
+- 利用github action (workflow)，每日定时（16:10 UTC+0，即北京时间0:10）通过bing官方api获取图像标题和url并以json文件储存更新到github仓库，数据按月储存；但由于github Action的定时任务并不准时，会延迟几分钟；使用github page部署作为api访问；点击日历时获取该日期的github上的json文件，并解析得到图像标题和url，然后本地显示；
 
-- 国内访问Github可能有问题，因此使用Gitee的同步仓库镜像功能，然后从该仓库获取json文件
+- 国内访问github可能有问题，因此将github仓库同步到gitee，然后从gitee仓库直接用raw文件获取json文件
+
+- QT6.9 实现界面
 
 ### ⁉️问题
 
@@ -34,8 +36,8 @@
 - 若锁屏修改失败，以管理员权限启动一次应用并修改
 
 
-### ❤️感谢
+### 🖼️数据源
 
-- 2010/01/01-2018/12/30的图像数据将加载自[https://bing.ee123.net/](https://bing.ee123.net/)，后续日期从bing官方源加载
+- 2010/01/01-2018/12/30的图像数据将加载自[https://bing.ee123.net/](https://bing.ee123.net/)，感谢❤️；后续日期从bing官方源加载
 
 - 2019/05/09及之前为1080P，之后如有4k源图像则加载4K图像
