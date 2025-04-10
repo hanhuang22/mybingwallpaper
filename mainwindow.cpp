@@ -309,8 +309,11 @@ bool MainWindow::setNetworkPic_json(const QString &date)
 {
     updateTimer->stop();
 
-    // QString jsonurl = "https://hanhuang22.github.io/mybingwallpaper/date/"+date+".json";
-    QString jsonurl = "https://gitee.com/Hyman25/mybingwallpaper/raw/wallpaperarchiv/date/"+date+".json";
+    // 从日期字符串提取年月信息，用于构建月度文件路径
+    QString yearMonth = date.left(6); // 从yyyyMMdd格式的日期中获取yyyyMM部分
+    
+    // 构建月度JSON文件URL
+    QString jsonurl = "https://gitee.com/Hyman25/mybingwallpaper/raw/wallpaperarchiv/month/"+yearMonth+".json";
     QUrl url(jsonurl);
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -333,20 +336,20 @@ bool MainWindow::setNetworkPic_json(const QString &date)
     
     if (reply->error() == QNetworkReply::NoError) {
         QByteArray jsonData = reply->readAll();
-        // qDebug() << "jsonData:" << jsonData.toStdString().c_str();
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonData);
         
         if (!jsonDoc.isNull()) {
-            if (jsonDoc.isArray()) {
-                // Handle array format [{}]
-                QJsonArray jsonArray = jsonDoc.array();
-                if (!jsonArray.isEmpty() && jsonArray.at(0).isObject()) {
-                    QJsonObject jsonObj = jsonArray.at(0).toObject();
-                    QString imgtitle = jsonObj["imgtitle"].toString();
-                    currentImgUrl = jsonObj["imgurl"].toString();
-
-                    // qDebug() << "imgtitle:" << imgtitle;
-                    // qDebug() << "currentImgUrl:" << currentImgUrl;
+            if (jsonDoc.isObject()) {
+                // 处理月度JSON文件，这是一个包含多个日期的对象
+                QJsonObject monthObj = jsonDoc.object();
+                
+                // 查找特定日期的数据
+                if (monthObj.contains(date)) {
+                    // 获取特定日期的数据
+                    QJsonObject dayObj = monthObj[date].toObject();
+                    
+                    QString imgtitle = dayObj["imgtitle"].toString();
+                    currentImgUrl = dayObj["imgurl"].toString();
                     
                     if (!imgtitle.isEmpty() && !currentImgUrl.isEmpty()) {
                         ui->label_2->setText(imgtitle);
@@ -356,22 +359,6 @@ bool MainWindow::setNetworkPic_json(const QString &date)
                     } else {
                         ui->label_2->setText(tr("获取图片信息失败"));
                     }
-                } else {
-                    ui->label_2->setText(tr("JSON数组为空或格式错误"));
-                }
-            } else if (jsonDoc.isObject()) {
-                // Handle direct object format {}
-                QJsonObject jsonObj = jsonDoc.object();
-                QString imgtitle = jsonObj["imgtitle"].toString();
-                currentImgUrl = jsonObj["imgurl"].toString();
-                
-                if (!imgtitle.isEmpty() && !currentImgUrl.isEmpty()) {
-                    ui->label_2->setText(imgtitle);
-                    ui->label_2->adjustSize();
-                    setNetworkPic(currentImgUrl);
-                    success = true;
-                } else {
-                    ui->label_2->setText(tr("获取图片信息失败"));
                 }
             } else {
                 ui->label_2->setText(tr("JSON格式不支持"));
@@ -380,9 +367,63 @@ bool MainWindow::setNetworkPic_json(const QString &date)
             ui->label_2->setText(tr("JSON数据解析失败"));
         }
     } else {
-        ui->label_2->setText(tr("网络请求失败: ") + reply->errorString());
+        // 如果在月度文件中找不到该日期，尝试使用旧的单日文件格式作为备选
+        QString oldJsonUrl = "https://gitee.com/Hyman25/mybingwallpaper/raw/wallpaperarchiv/date/" + date + ".json";
+        QUrl oldUrl(oldJsonUrl);
+        QNetworkRequest oldRequest(oldUrl);
+        oldRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QEventLoop oldLoop;
+        QNetworkReply *oldReply = networkManager->get(oldRequest);
+        connect(oldReply, &QNetworkReply::finished, &oldLoop, &QEventLoop::quit);
+        oldLoop.exec();
+
+        if (oldReply->error() == QNetworkReply::NoError)
+        {
+            QByteArray oldJsonData = oldReply->readAll();
+            QJsonDocument oldJsonDoc = QJsonDocument::fromJson(oldJsonData);
+
+            if (!oldJsonDoc.isNull() && oldJsonDoc.isArray())
+            {
+                QJsonArray jsonArray = oldJsonDoc.array();
+                if (!jsonArray.isEmpty() && jsonArray.at(0).isObject())
+                {
+                    QJsonObject jsonObj = jsonArray.at(0).toObject();
+                    QString imgtitle = jsonObj["imgtitle"].toString();
+                    currentImgUrl = jsonObj["imgurl"].toString();
+
+                    if (!imgtitle.isEmpty() && !currentImgUrl.isEmpty())
+                    {
+                        ui->label_2->setText(imgtitle);
+                        ui->label_2->adjustSize();
+                        setNetworkPic(currentImgUrl);
+                        success = true;
+                    }
+                    else
+                    {
+                        ui->label_2->setText(tr("获取图片信息失败"));
+                    }
+                }
+                else
+                {
+                    ui->label_2->setText(tr("日期 ") + date + tr(" 的图片数据不存在"));
+                }
+            }
+            else
+            {
+                ui->label_2->setText(tr("日期 ") + date + tr(" 的图片数据不存在"));
+            }
+            oldReply->deleteLater();
+        }
+        else
+        {
+            ui->label_2->setText(tr("日期 ") + date + tr(" 的图片数据不存在"));
+            oldReply->deleteLater();
+        }
+    // } else {
+        // ui->label_2->setText(tr("网络请求失败: ") + reply->errorString());
     }
-    
+
     reply->deleteLater();
     resetUpdateTimer();
     return success;
