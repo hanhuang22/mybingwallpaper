@@ -10,7 +10,8 @@ CONFIG += c++17
 
 SOURCES += \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    mainwindow_func.cpp
 
 HEADERS += \
     mainwindow.h

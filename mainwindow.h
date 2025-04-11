@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "ui_mainwindow.h"
 #include <QMainWindow>
 #include <QString>
 #include <QtNetwork/QNetworkAccessManager>
@@ -15,6 +16,25 @@
 #include <QDate>
 #include <QDir>
 #include <QVariant>
+#include <QPixmap>
+#include <QFileInfo>
+#include <QMessageBox>
+#include <Windows.h>
+#include <QtNetwork/QNetworkReply>
+#include <QObject>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QApplication>
+#include <QIcon>
+#include <QStyle>
+#include <QSettings>
+#include <QTextCharFormat>
+#include <QDebug>
+#include <QFile>
+#include <QMoveEvent>
+#include <QDateTime>
+#include <QJsonArray>
+#include <QRandomGenerator>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -47,19 +67,22 @@ private slots:
 private:
     Ui::MainWindow *ui;
     QNetworkAccessManager *networkManager;
+    QString const configPath = QApplication::applicationDirPath() + "/mybing.conf";
     QString currentImgUrl;
     QString currentImgPath;
-    QProgressDialog *loadingDialog;
+    QProgressDialog *loadingDialog = nullptr;
     bool needAutoClickAfterSelection = false;
-    bool needInitialUpdate = false;
+    bool needSelectDateAndAutoClick = false;
     QString lastSelectedDate;
     bool shouldAutoUpdate = false;
     bool lockscreenEnabled = false;
+    void setSelectedDateWithAutoClick(const QString &date, bool autoClick);
     bool setWindowsWallpaper(const QString &imagePath);
     bool setLockScreenWallpaper(const QString &imagePath);
     bool clearLockScreenWallpaper();
     bool setNetworkPic_json(const QString &date);
     void setNetworkPic(const QString &imgurl);
+    QIcon getApplicationIcon();
     
     // Image download and application methods
     void downloadAndSetWallpaper();
