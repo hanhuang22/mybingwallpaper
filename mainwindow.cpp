@@ -251,8 +251,8 @@ bool MainWindow::setNetworkPic_json(const QString &date)
     // 从日期字符串提取年月信息，用于构建月度文件路径
     QString yearMonth = date.left(6); // 从yyyyMMdd格式的日期中获取yyyyMM部分
     
-    // 构建月度JSON文件URL
-    QString jsonurl = "https://gitee.com/Hyman25/mybingwallpaper/raw/wallpaperarchiv/month/"+yearMonth+".json";
+    // 读取月度JSON文件URL
+    QString jsonurl = "https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month/"+yearMonth+".json";
     QUrl url(jsonurl);
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
