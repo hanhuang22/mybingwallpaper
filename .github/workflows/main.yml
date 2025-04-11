@@ -32,6 +32,9 @@ jobs:
           pip install -r ./requirements.txt
 
       - name: 'Get bing wallpaper'
+        env:
+          OSS_ACCESS_KEY_ID: ${{ secrets.ALI_OSS_ACCESSKEYID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.ALI_OSS_ACCESSKEYSECRET }}
         run: python ./main.py
 
 
