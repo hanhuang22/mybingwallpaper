@@ -36,7 +36,7 @@
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>10</y>
+      <y>30</y>
       <width>240</width>
       <height>190</height>
      </rect>
@@ -74,7 +74,7 @@
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>220</y>
+      <y>250</y>
       <width>75</width>
       <height>24</height>
      </rect>
@@ -87,7 +87,7 @@
     <property name="geometry">
      <rect>
       <x>520</x>
-      <y>220</y>
+      <y>250</y>
       <width>75</width>
       <height>24</height>
      </rect>
@@ -127,69 +127,60 @@
     <property name="maximumSize">
      <size>
       <width>400</width>
-      <height>40</height>
+      <height>60</height>
      </size>
     </property>
     <property name="text">
      <string>TextLabel</string>
     </property>
+    <property name="alignment">
+     <set>Qt::AlignmentFlag::AlignCenter</set>
+    </property>
     <property name="wordWrap">
      <bool>true</bool>
     </property>
-   </widget>
-   <widget class="QCheckBox" name="autoStartCheckBox">
-    <property name="geometry">
-     <rect>
-      <x>600</x>
-      <y>260</y>
-      <width>75</width>
-      <height>24</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>开机启动</string>
-    </property>
-   </widget>
-   <widget class="QCheckBox" name="autoUpdateCheckBox">
-    <property name="geometry">
-     <rect>
-      <x>520</x>
-      <y>260</y>
-      <width>75</width>
-      <height>24</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>自动更新</string>
-    </property>
-   </widget>
-   <widget class="QCheckBox" name="checkBox">
-    <property name="geometry">
-     <rect>
-      <x>440</x>
-      <y>260</y>
-      <width>75</width>
-      <height>24</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>锁屏壁纸</string>
+    <property name="background" stdset="0">
+     <string>(255,200,200)</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pushButton_3">
     <property name="geometry">
      <rect>
       <x>600</x>
-      <y>220</y>
+      <y>250</y>
       <width>75</width>
       <height>24</height>
      </rect>
     </property>
     <property name="text">
-     <string>随机壁纸</string>
+     <string>随机一张</string>
     </property>
    </widget>
   </widget>
+  <action name="action_2">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>锁屏壁纸</string>
+   </property>
+  </action>
+  <action name="action_3">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>每日更新</string>
+   </property>
+  </action>
+  <action name="action_4">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>开机启动</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>

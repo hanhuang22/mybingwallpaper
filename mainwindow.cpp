@@ -62,7 +62,6 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
     , networkManager(new QNetworkAccessManager(this))
     , loadingDialog(nullptr)
-    , setLockScreenWallpaper_enabled(false)
     , needAutoClickAfterSelection(false)
 {
     ui->setupUi(this);
@@ -78,32 +77,21 @@ MainWindow::MainWindow(QWidget *parent)
     // Set window icon
     setWindowIcon(getApplicationIcon());
 
-    // Setup system tray icon
-    createTrayIcon();
     // 初始化自动更新定时器
     updateTimer = new QTimer(this);
     connect(updateTimer, &QTimer::timeout, this, &MainWindow::autoUpdateWallpaper);
 
-    // 加载设置
+    // 先加载设置
     loadSettings();
+    
+    // 再创建托盘图标（使用加载的设置）
+    createTrayIcon();
 
-    // 检查网络连接并加载壁纸，而不是直接调用
+    // 检查网络连接并加载壁纸
     initNetworkWallpaper();
-
-    // 连接信号槽
-    connect(ui->autoStartCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_autoStartCheckBox_stateChanged);
-
-    // 连接自动更新复选框信号
-    connect(ui->autoUpdateCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_autoUpdateCheckBox_stateChanged);
-
-    // 连接锁屏壁纸复选框信号 
-    connect(ui->checkBox, &QCheckBox::checkStateChanged, this, &MainWindow::on_checkBox_stateChanged);
 
     // 启动时不显示主窗口
     // show();
-
-    // 加载设置
-    // loadSettings();
 }
 
 MainWindow::~MainWindow()
@@ -116,7 +104,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::resetUpdateTimer()
 {
-    updateTimer->start(15*60*1000);
+    if (dailyUpdateAction->isChecked()) {
+        updateTimer->start(15*60*1000);
+    }
 }
 
 void MainWindow::createTrayIcon()
@@ -125,8 +115,73 @@ void MainWindow::createTrayIcon()
     exitAction = new QAction(tr("退出"), this);
     connect(exitAction, &QAction::triggered, this, &MainWindow::exitApplication);
 
+    dailyUpdateAction = new QAction(tr("每日更新"), this);
+    dailyUpdateAction->setCheckable(true);
+    dailyUpdateAction->setChecked(shouldAutoUpdate);
+    connect(dailyUpdateAction, &QAction::triggered, this, [this]() {
+        bool checked = dailyUpdateAction->isChecked();
+        shouldAutoUpdate = checked;
+        
+        if (checked) {
+            resetUpdateTimer();
+            
+            // 如果是当天首次启用，立即尝试更新
+            QSettings settings(QApplication::applicationDirPath() + "/mybing.conf", QSettings::IniFormat);
+            QString lastUpdateDate = settings.value("lastUpdateDate", "").toString();
+            QDate currentDate = QDate::currentDate();
+            
+            if (lastUpdateDate.isEmpty() || lastUpdateDate != currentDate.toString("yyyyMMdd") || 
+                lastSelectedDate != currentDate.toString("yyyyMMdd") || ui->calendarWidget->selectedDate() != currentDate) {
+                // 延迟1秒后执行更新，避免界面卡顿
+                QTimer::singleShot(1000, this, &MainWindow::autoUpdateWallpaper);
+            }
+        } else {
+            updateTimer->stop();
+        }
+        saveSettings("autoUpdate", checked);
+    });
+
+    lockscreenAction = new QAction(tr("锁屏壁纸"), this);
+    lockscreenAction->setCheckable(true);
+    lockscreenAction->setChecked(lockscreenEnabled);
+    connect(lockscreenAction, &QAction::triggered, this, [this]() {
+        bool checked = lockscreenAction->isChecked();
+        lockscreenEnabled = checked;
+        
+        if (!checked) {
+            bool clearResult = clearLockScreenWallpaper();
+            if (!clearResult) {
+                QMessageBox::warning(this, tr("警告"), tr("清除锁屏壁纸失败，可能需要管理员权限。"));
+            }
+        } else if (!currentImgPath.isEmpty()) {
+            bool setResult = setLockScreenWallpaper(currentImgPath);
+            if (!setResult) {
+                QMessageBox::warning(this, tr("警告"), tr("设置锁屏壁纸失败，可能需要管理员权限。"));
+                lockscreenAction->setChecked(false);
+                lockscreenEnabled = false;
+            }
+        }
+        
+        saveSettings("setLockScreenWallpaper_enabled", checked);
+    });
+
+    autoStartAction = new QAction(tr("开机自启"), this);
+    autoStartAction->setCheckable(true);
+    // 检查主程序是否已经更新了auto start状态，如果已更新，我们应使用当前实际状态
+    autoStartAction->setChecked(isAutoStartEnabled());
+    connect(autoStartAction, &QAction::triggered, this, [this]() {
+        bool checked = autoStartAction->isChecked();
+        setAutoStart(checked);
+        saveSettings("autoStart", checked);
+    });
+
     // Create tray icon menu
     trayIconMenu = new QMenu(this);
+    trayIconMenu->addAction(dailyUpdateAction);
+    trayIconMenu->addAction(lockscreenAction);
+    trayIconMenu->addAction(autoStartAction);
+    trayIconMenu->addSeparator();
+    // Add exit action to the menu
     trayIconMenu->addAction(exitAction);
 
     // Setup system tray icon
@@ -140,6 +195,11 @@ void MainWindow::createTrayIcon()
 
     // Connect tray icon signals
     connect(trayIcon, &QSystemTrayIcon::activated, this, &MainWindow::trayIconActivated);
+    
+    // 如果自动更新被启用，启动定时器
+    if (shouldAutoUpdate) {
+        resetUpdateTimer();
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -252,9 +312,6 @@ void MainWindow::disableUI()
     ui->pushButton_2->setEnabled(false);
     ui->pushButton_3->setEnabled(false);
     ui->calendarWidget->setEnabled(false);
-    ui->autoUpdateCheckBox->setEnabled(false);
-    ui->autoStartCheckBox->setEnabled(false);
-    ui->checkBox->setEnabled(false);
     
     // Show loading dialog if main window is visible
     if (isVisible()) {
@@ -269,9 +326,6 @@ void MainWindow::enableUI()
     ui->pushButton_2->setEnabled(true);
     ui->pushButton_3->setEnabled(true);
     ui->calendarWidget->setEnabled(true);
-    ui->autoUpdateCheckBox->setEnabled(true);
-    ui->autoStartCheckBox->setEnabled(true);
-    ui->checkBox->setEnabled(true);
     
     // Hide loading dialog if main window is visible
     if (isVisible()) {
@@ -420,6 +474,24 @@ void MainWindow::on_pushButton_3_clicked()
     randomUpdateWallpaper();
 }
 
+void MainWindow::randomUpdateWallpaper()
+{
+    // 生成随机日期, 不早于2010-01-01
+    QDate startDate = QDate(2010, 1, 1);
+    QDate endDate = QDate::currentDate();
+    QDate randomDate = startDate.addDays(QRandomGenerator::global()->bounded(startDate.daysTo(endDate)));
+    
+    // 设置一个标志，告诉选择变更处理器在网络操作完成后自动点击按钮
+    needAutoClickAfterSelection = true;
+    // 设置日历控件的日期
+    ui->calendarWidget->setSelectedDate(randomDate);
+
+    // Save the currently selected date
+    QDate selectedDate = ui->calendarWidget->selectedDate();
+    saveSettings("lastSelectedDate", selectedDate.toString("yyyyMMdd"));
+}
+
+
 void MainWindow::downloadAndSetWallpaper()
 {
     if (!downloadImage()) {
@@ -430,13 +502,18 @@ void MainWindow::downloadAndSetWallpaper()
     bool desktopResult = setWindowsWallpaper(currentImgPath);
     
     // If lock screen wallpaper is enabled, set it directly too
-    if (setLockScreenWallpaper_enabled && desktopResult) {
+    if (lockscreenEnabled && desktopResult) {
         setLockScreenWallpaper(currentImgPath);
     }
     
     // Save the currently selected date
     QDate selectedDate = ui->calendarWidget->selectedDate();
     saveSettings("lastSelectedDate", selectedDate.toString("yyyyMMdd"));
+    
+    // 如果设置的是今天的壁纸，保存最后更新日期
+    if (selectedDate == QDate::currentDate()) {
+        saveSettings("lastUpdateDate", selectedDate.toString("yyyyMMdd"));
+    }
 }
 
 void MainWindow::downloadAndSaveWallpaper()
@@ -469,7 +546,7 @@ void MainWindow::downloadAndSaveWallpaper()
 bool MainWindow::downloadImage()
 {
     updateTimer->stop();
-
+    
     QUrl url(currentImgUrl);
     QEventLoop loop;
     QTimer timer;
@@ -497,7 +574,8 @@ bool MainWindow::downloadImage()
     } else {
         // 超时处理
         reply->abort();
-        QMessageBox::warning(this, tr("错误"), tr("下载壁纸超时"));
+        // QMessageBox::warning(this, tr("错误"), tr("下载壁纸超时"));
+        ui->label_2->setText(tr("下载壁纸超时: ") + url.toString());
         reply->deleteLater();
         resetUpdateTimer();
         return false;
@@ -505,7 +583,8 @@ bool MainWindow::downloadImage()
 
     // 检查网络请求是否成功
     if (reply->error() != QNetworkReply::NoError) {
-        QMessageBox::warning(this, tr("错误"), tr("下载壁纸失败: ") + reply->errorString());
+        // QMessageBox::warning(this, tr("错误"), tr("下载壁纸失败: ") + reply->errorString());
+        ui->label_2->setText(tr("下载壁纸失败: ") + reply->errorString());
         reply->deleteLater();
         resetUpdateTimer();
         return false;
@@ -519,7 +598,8 @@ bool MainWindow::downloadImage()
         file.close();
         currentImgPath = finalPath;
     } else {
-        QMessageBox::warning(this, tr("错误"), tr("无法保存壁纸到临时文件!"));
+        // QMessageBox::warning(this, tr("错误"), tr("无法保存壁纸到临时文件!"));
+        ui->label_2->setText(tr("无法保存壁纸到临时文件!"));
         reply->deleteLater();
         resetUpdateTimer();
         return false;
@@ -529,14 +609,6 @@ bool MainWindow::downloadImage()
 
     resetUpdateTimer();
     return true;
-}
-
-void MainWindow::on_autoStartCheckBox_stateChanged(int state)
-{
-    bool enable = (state == Qt::Checked);
-    setAutoStart(enable);
-    // 保存设置
-    saveSettings("autoStart", ui->autoStartCheckBox->isChecked());
 }
 
 bool MainWindow::setAutoStart(bool enable)
@@ -580,45 +652,36 @@ bool MainWindow::isAutoStartEnabled()
     return registryPath == appPath;
 }
 
-void MainWindow::on_autoUpdateCheckBox_stateChanged(int state)
-{
-    if (state == Qt::Checked) {
-        // 启动定时器
-        resetUpdateTimer();
-    } else {
-        // 停止定时器
-        updateTimer->stop();
-    }
-    // 保存设置
-    saveSettings("autoUpdate", ui->autoUpdateCheckBox->isChecked());
-}
-
 void MainWindow::autoUpdateWallpaper()
 {
+    // 获取当前日期
+    QDate currentDate = QDate::currentDate();
+    QString currentDateStr = currentDate.toString("yyyyMMdd");
+    
     // 更新日历最大日期
     updateCalendarMaximumDate();
-    // 设置一个标志，告诉选择变更处理器在网络操作完成后自动点击按钮
-    if (ui->calendarWidget->selectedDate() == QDate::currentDate()) {
-        ui->pushButton->click();
-    } else {
-        needAutoClickAfterSelection = true;
-        // 设置当前日期
-        ui->calendarWidget->setSelectedDate(QDate::currentDate());
+    
+    // 获取上次更新日期
+    QSettings settings(QApplication::applicationDirPath() + "/mybing.conf", QSettings::IniFormat);
+    QString lastUpdateDate = settings.value("lastUpdateDate", "").toString();
+    
+    // 检查是否已经是新的一天，且今天尚未更新
+    if (lastUpdateDate != currentDateStr || ui->calendarWidget->selectedDate() != currentDate) {
+        // 尝试获取今日最新的壁纸
+        bool success = setNetworkPic_json(currentDateStr);
+        
+        // 只有在成功获取到今日壁纸的情况下才更新壁纸
+        if (success) {
+            // 设置日历控件的日期为今天
+            ui->calendarWidget->setSelectedDate(currentDate);
+            
+            // 自动设置壁纸
+            ui->pushButton->click();
+        } else {
+            // 如果获取失败，不做任何操作，等待下一次计时器触发
+            qDebug() << "Failed to get today's wallpaper, will retry later";
+        }
     }
-    
-}
-
-void MainWindow::randomUpdateWallpaper()
-{
-    // 生成随机日期, 不早于2010-01-01
-    QDate startDate = QDate(2010, 1, 1);
-    QDate endDate = QDate::currentDate();
-    QDate randomDate = startDate.addDays(QRandomGenerator::global()->bounded(startDate.daysTo(endDate)));
-    
-    // 设置一个标志，告诉选择变更处理器在网络操作完成后自动点击按钮
-    needAutoClickAfterSelection = true;
-    // 设置日历控件的日期
-    ui->calendarWidget->setSelectedDate(randomDate);
 }
 
 void MainWindow::saveSettings(const QString &key, const QVariant &value)
@@ -655,34 +718,14 @@ void MainWindow::loadSettings()
         setAutoStart(true);
     }
     
-    // 根据配置更新UI
-    ui->autoStartCheckBox->setChecked(shouldAutoStart);
+    // 保存各种设置项，供createTrayIcon使用
+    shouldAutoUpdate = settings.value("autoUpdate", false).toBool();
+    lockscreenEnabled = settings.value("setLockScreenWallpaper_enabled", false).toBool();
+    lastSelectedDate = settings.value("lastSelectedDate", "").toString();
     
-    if (settings.value("autoUpdate", false).toBool()) {
-        ui->autoUpdateCheckBox->setChecked(true);
-    }
-    
-    if (settings.value("setLockScreenWallpaper_enabled", false).toBool()) {
-        setLockScreenWallpaper_enabled = true;
-        ui->checkBox->setChecked(true);
-    }
-
-    // // 如果自动更新被启用，启动定时器
-    // if (ui->autoUpdateCheckBox->isChecked()) {
-    //     updateTimer->start(15*60*1000);
-    // }
-    
-    // 恢复上次选择的日期
-    QString savedDate = settings.value("lastSelectedDate", "").toString();
-    if (!savedDate.isEmpty()) {
-        QDate date = QDate::fromString(savedDate, "yyyyMMdd");
-        if (date.isValid()) {
-            // 设置日历控件的日期
-            ui->calendarWidget->setSelectedDate(date);
-        }
-    } else {
-        // 如果没有保存的日期，默认选择今天
-        ui->calendarWidget->setSelectedDate(QDate::currentDate());
+    // 如果自动更新被启用，设置标志
+    if (shouldAutoUpdate) {
+        needInitialUpdate = true;
     }
 }
 
@@ -705,9 +748,8 @@ bool MainWindow::setWindowsWallpaper(const QString &imagePath)
     );
 
     // Only set lock screen wallpaper if enabled
-    if (setLockScreenWallpaper_enabled) {
+    if (lockscreenEnabled) {
         setLockScreenWallpaper(imagePath);
-        // qDebug() << "lockScreenSet:" << lockScreenSet;
     }
     
     // Return true if at least the desktop wallpaper was set successfully
@@ -777,16 +819,52 @@ void MainWindow::initNetworkWallpaper()
         testReply->deleteLater();
         
         if (isConnected) {
-            // 网络连接成功，尝试加载壁纸
-            bool wallpaperLoaded = setNetworkPic_json(ui->calendarWidget->selectedDate().toString("yyyyMMdd"));
+            QDate currentDate = QDate::currentDate();
+            QString currentDateStr = currentDate.toString("yyyyMMdd");
+            bool wallpaperLoaded = false;
             
-            if (wallpaperLoaded) {
+            // 始终优先显示今日壁纸
+            wallpaperLoaded = setNetworkPic_json(currentDateStr);
+            
+            if (wallpaperLoaded && needInitialUpdate) {
+                // 设置日历控件的日期为今天
+                ui->calendarWidget->setSelectedDate(currentDate);
+
+                // 如果需要自动更新，检查是否需要设置壁纸
+                QSettings settings(QApplication::applicationDirPath() + "/mybing.conf", QSettings::IniFormat);
+                QString lastUpdateDate = settings.value("lastUpdateDate", "").toString();
+
+                // 如果没有上次更新日期，或者上次更新不是今天，则自动设置壁纸
+                if (lastUpdateDate.isEmpty() || lastUpdateDate != currentDateStr || lastSelectedDate != currentDateStr) {
+                    QTimer::singleShot(1000, this, [this]() {
+                                           ui->pushButton->click(); // 自动点击"设为壁纸"按钮
+                                       });
+                }
+
+                // 重置标志
+                needInitialUpdate = false;
+
                 // 壁纸加载成功，停止定时器
                 networkCheckTimer->stop();
                 networkCheckTimer->deleteLater();
                 
                 qDebug() << "Network connection established, wallpaper loaded successfully";
-            } else {
+            } else if (!needInitialUpdate) {
+                // 尝试恢复上次选择的壁纸
+                if (!lastSelectedDate.isEmpty()) {
+                    QDate date = QDate::fromString(lastSelectedDate, "yyyyMMdd");
+                    if (date.isValid()) {
+                        bool oldWallpaperLoaded = setNetworkPic_json(lastSelectedDate);
+                        if (oldWallpaperLoaded) {
+                            ui->calendarWidget->setSelectedDate(date);
+                            networkCheckTimer->stop();
+                            networkCheckTimer->deleteLater();
+                            qDebug() << "Network connected, today's wallpaper failed, loaded saved wallpaper";
+                            return true;
+                        }
+                    }
+                }
+                
                 // 壁纸加载失败，但网络连接正常，可能是服务器问题
                 qDebug() << "Network connected but wallpaper loading failed, will retry...";
             }
@@ -808,40 +886,14 @@ void MainWindow::initNetworkWallpaper()
     QTimer::singleShot(0, this, checkNetworkConnection);
 }
 
-void MainWindow::on_checkBox_stateChanged(int state)
+void MainWindow::updateCalendarMaximumDate()
 {
-    setLockScreenWallpaper_enabled = (state == Qt::Checked);
-    
-    if (!setLockScreenWallpaper_enabled) {
-        // If checkbox is unchecked, clear the lock screen wallpaper
-        bool clearResult = clearLockScreenWallpaper();
-        if (!clearResult) {
-            // Show a warning message if clearing fails, but don't change checkbox state
-            QMessageBox::warning(this, tr("警告"), tr("清除锁屏壁纸失败，可能需要管理员权限。"));
-        } else {
-            // Optional: Show success message
-            // QMessageBox::information(this, tr("成功"), tr("已清除锁屏壁纸设置。"));
-        }
-    } else if (!currentImgPath.isEmpty()) {
-        // If checkbox is checked and we have a current image, set it as lock screen
-        bool setResult = setLockScreenWallpaper(currentImgPath);
-        if (!setResult) {
-            // Show a warning message if setting fails
-            QMessageBox::warning(this, tr("警告"), tr("设置锁屏壁纸失败，可能需要管理员权限。"));
-            // Uncheck the box since we couldn't set it
-            ui->checkBox->blockSignals(true);
-            ui->checkBox->setChecked(false);
-            ui->checkBox->blockSignals(false);
-            setLockScreenWallpaper_enabled = false;
-        }
-    }
-    
-    // 保存设置
-    saveSettings("setLockScreenWallpaper_enabled", setLockScreenWallpaper_enabled);
+    ui->calendarWidget->setMaximumDate(QDate::currentDate());
 }
 
 bool MainWindow::clearLockScreenWallpaper()
 {
+    qDebug() << "clearLockScreenWallpaper";
     // Create registry key: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP
     QSettings settings("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PersonalizationCSP", 
                        QSettings::NativeFormat);
@@ -864,9 +916,4 @@ bool MainWindow::clearLockScreenWallpaper()
     }
     
     return success;
-}
-
-void MainWindow::updateCalendarMaximumDate()
-{
-    ui->calendarWidget->setMaximumDate(QDate::currentDate());
 }

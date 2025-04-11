@@ -41,9 +41,6 @@ private slots:
     void on_calendarWidget_selectionChanged();
     void trayIconActivated(QSystemTrayIcon::ActivationReason reason);
     void exitApplication();
-    void on_autoStartCheckBox_stateChanged(int state);
-    void on_autoUpdateCheckBox_stateChanged(int state);
-    void on_checkBox_stateChanged(int state);
     void autoUpdateWallpaper();
     void randomUpdateWallpaper();
 
@@ -53,8 +50,11 @@ private:
     QString currentImgUrl;
     QString currentImgPath;
     QProgressDialog *loadingDialog;
-    bool setLockScreenWallpaper_enabled;
     bool needAutoClickAfterSelection = false;
+    bool needInitialUpdate = false;
+    QString lastSelectedDate;
+    bool shouldAutoUpdate = false;
+    bool lockscreenEnabled = false;
     bool setWindowsWallpaper(const QString &imagePath);
     bool setLockScreenWallpaper(const QString &imagePath);
     bool clearLockScreenWallpaper();
@@ -70,6 +70,9 @@ private:
     QSystemTrayIcon *trayIcon;
     QMenu *trayIconMenu;
     QAction *exitAction;
+    QAction *dailyUpdateAction;
+    QAction *lockscreenAction;
+    QAction *autoStartAction;
     
     // Timer for auto update
     QTimer *updateTimer;
