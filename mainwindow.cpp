@@ -326,10 +326,41 @@ void MainWindow::setNetworkPic(const QString &imgurl)
         url = QUrl(imgurl);
     }
     QEventLoop loop;
+    QTimer timer;
+    
+    // 设置超时时间为5秒
+    timer.setSingleShot(true);
+    timer.start(5000);
+
     QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
-    QObject::connect(reply, SIGNAL(finished()), &loop, SLOT(quit()));
-    //开启子事件循环
+    
+    // 连接超时信号和完成信号
+    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    
+    // 开启事件循环
     loop.exec();
+    
+    // 判断是否超时
+    if (timer.isActive()) {
+        // 未超时，停止计时器
+        timer.stop();
+    } else {
+        // 超时处理
+        reply->abort();
+        ui->label_2->setText(tr("预览图片下载超时"));
+        ui->label_2->adjustSize();
+        reply->deleteLater();
+        return;
+    }
+
+    // 检查网络请求是否成功
+    if (reply->error() != QNetworkReply::NoError) {
+        ui->label_2->setText(tr("预览图片下载失败: ") + reply->errorString());
+        ui->label_2->adjustSize();
+        reply->deleteLater();
+        return;
+    }
 
     QByteArray jpegData = reply->readAll();
     QPixmap pixmap;
