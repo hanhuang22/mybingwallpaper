@@ -3,6 +3,7 @@ import requests
 import json
 import time
 import os
+from ali_oss import bucket
 
 # work_list = [
 #     "de-DE", "en-CA", "en-GB", "en-IN", "en-US", "fr-FR", "it-IT", "ja-JP", "zh-CN"
@@ -81,6 +82,14 @@ def main(run_type):
         # Write the data to the file
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(month_data, f, ensure_ascii=False, indent=2)
+        
+        # 上传文件到阿里云OSS
+        try:
+            linux_file_path = file_path.replace('\\', '/')
+            bucket.put_object_from_file(linux_file_path, linux_file_path)
+            print(f"[{get_now_time()}] 上传文件 {linux_file_path} 成功")
+        except Exception as e:
+            print(f"[{get_now_time()}] 上传文件 {file_path} 失败: {e}")
         
         print(f"[{get_now_time()}] 保存文件 {file_path} 成功")
 
