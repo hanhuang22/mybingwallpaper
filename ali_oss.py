@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 required_env_vars = ['OSS_ACCESS_KEY_ID', 'OSS_ACCESS_KEY_SECRET']
 for var in required_env_vars:
     if var not in os.environ:
-        logging.error(f"Environment variable {var} is not set.")
+        print(f"Environment variable {var} is not set.")
         exit(1)
 
 # 从环境变量中获取访问凭证
@@ -26,9 +26,9 @@ bucket_name = "my-bing-wallpaper"
 bucket = oss2.Bucket(auth, endpoint, bucket_name, region=region)
 
 
-file_path = 'month/202504.json'
-print(file_path)
-bucket.put_object_from_file(file_path, file_path)
+# file_path = 'month/202504.json'
+# print(file_path)
+# bucket.put_object_from_file(file_path, file_path)
 
 
 
