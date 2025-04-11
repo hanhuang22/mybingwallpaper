@@ -2,23 +2,27 @@
 
 ### 🏠软件界面
 
-![example](img/example.png)
+![主界面](img/main.png)
 
 ### 🔦使用
 
-- 双击启动/开机启动时启动到托盘，点击托盘图标显示主界面；点击关闭，最小化到托盘；右击托盘图标，点击退出
+- 双击启动/开机启动时启动到托盘，点击托盘图标显示主界面；点击关闭，最小化到托盘
 
 - 设为壁纸：设置桌面壁纸
 
 - 保存图片：保存至用户图片文件夹
 
-- 随机壁纸：手动随机一张壁纸；若设置了自动更新，会在一段时间后更新时被更新为今日壁纸
+- 随机一张：手动随机一张壁纸；若设置了自动更新，会在一段时间后更新时被更新为今日壁纸
+
+- 右击托盘图标，显示菜单选项
+
+- ![托盘](img/trayicon.png)
+
+- 每日更新：每15分钟尝试更新一次最新壁纸
 
 - 锁屏壁纸：立即通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP；取消勾选后立即清除注册表内容
 
-- 自动更新：每15分钟尝试更新一次最新壁纸
-
-- 开机启动：将程序添加到注册表：HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
+- 开机自启：将程序添加到注册表：HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
 
 
 ### 🛠️实现方式
@@ -35,6 +39,7 @@
 
 - 若锁屏修改失败，以管理员权限启动一次应用并修改
 
+- [ ] 待解决：Gitee的🐶💨内容审查制度，导致部分月份json文件被认为有问题，无法获取... 
 
 ### 🖼️数据源
 
