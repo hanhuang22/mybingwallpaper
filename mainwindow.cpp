@@ -454,7 +454,7 @@ void MainWindow::downloadAndSaveWallpaper()
     QString dateStr = ui->calendarWidget->selectedDate().toString("yyyy-MM-dd");
 
     // Get user's Pictures directory path
-    QString savePath = QDir::home().filePath("Pictures");
+    QString savePath = QDir::home().filePath("Pictures/MyBingWallpaper");
     QDir dir(savePath);
 
     // Create directory if it doesn't exist
@@ -463,7 +463,7 @@ void MainWindow::downloadAndSaveWallpaper()
     }
 
     // 最终文件名
-    QString finalFilePath = dir.filePath(QString("mybingwallpaper-%1.jpg").arg(dateStr));
+    QString finalFilePath = dir.filePath(QString("%1.jpg").arg(dateStr));
     
     // Copy the temporary file to the Pictures directory
     QFile::copy(currentImgPath, finalFilePath);
