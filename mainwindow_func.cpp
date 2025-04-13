@@ -270,6 +270,13 @@ bool MainWindow::clearLockScreenWallpaper()
         // If any error occurs, return false
         success = false;
     }
+
+    // 检测是否设置成功
+    if (settings.value("LockScreenImageStatus", 0).toInt() == 0) {
+        success = true;
+    } else {
+        success = false;
+    }
     
     return success;
 }
