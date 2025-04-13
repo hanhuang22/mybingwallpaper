@@ -12,7 +12,7 @@
 
 - 保存图片：保存至用户图片文件夹
 
-- 随机一张：手动随机一张壁纸；若设置了自动更新，会在一段时间后更新时被更新为今日壁纸
+- 随机一张：随机一张壁纸；若设置了自动更新，会在一段时间后重新被更新为今日壁纸
 
 - 右击托盘图标，显示菜单选项
 
@@ -22,7 +22,7 @@
 
 - 锁屏壁纸：立即通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP；取消勾选后立即清除注册表内容
 
-- 开机自启：将程序添加到注册表：HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
+- 开机自启：将程序添加到注册表：HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run；由于管理员权限（以修改锁屏壁纸），同时添加到32位的注册表以正常自启动： HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run；取消勾选后立即清除注册表内容
 
 
 ### 🛠️实现方式
@@ -31,18 +31,19 @@
 
 - 国内访问github可能有问题，因此将github仓库同步到gitee，然后从gitee仓库直接用raw文件获取json文件
 
+- 已解决：Gitee的🐶💨内容审查制度，导致部分月份json文件被认为有问题，无法获取 -> 用阿里云oss存储
+
 - QT6.9 实现界面
 
 ### ⁉️问题
 
-- 若出现长时间加载，可能为网络问题，可最小化等待，或尝试重启应用
+- 若出现加载超时，可能为网络问题，可尝试重新加载
 
-- 若锁屏修改失败，以管理员权限启动一次应用并修改
+- 若锁屏修改失败，右击以管理员权限启动
 
-- 已解决：Gitee的🐶💨内容审查制度，导致部分月份json文件被认为有问题，无法获取 -> 用阿里云oss存储
 
 ### 🖼️数据源
 
 - 2010/01/01-2018/12/30的图像数据将加载自[https://bing.ee123.net/](https://bing.ee123.net/)，感谢❤️；后续日期从bing官方源加载
 
-- 2019/05/09及之前为1080P，之后如有4k源图像则加载4K图像
+- 图片分辨率：2016/03/14及之前分辨率似乎较低，到2019/05/09似乎为1080P，之后有4k源图像则加载4K图像

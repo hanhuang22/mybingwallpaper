@@ -8,6 +8,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     setWindowTitle(tr("必应壁纸"));
 
+    ui->label_2->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
     // 设置日历最大日期为今天，限制不能选择未来日期
     updateCalendarMaximumDate();
     QTextCharFormat weekendFormat;
@@ -258,12 +260,19 @@ bool MainWindow::setNetworkPic_json(const QString &date)
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     
     QEventLoop loop;
+    QTimer timer;
+    
+    // 设置超时时间为3秒
+    timer.setSingleShot(true);
+    timer.start(3000);
+    
     QNetworkReply *reply = networkManager->get(request);
     
-    // Connect to handle errors
-    // connect(reply, &QNetworkReply::errorOccurred, [&](QNetworkReply::NetworkError error) {
-    //     qDebug() << "Network error:" << error << reply->errorString();
-    // });
+    // 连接超时信号和完成信号
+    connect(&timer, &QTimer::timeout, [&loop, reply]() {
+        reply->abort();
+        loop.quit();
+    });
     
     // Connect to exit the event loop when finished
     connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
@@ -271,9 +280,24 @@ bool MainWindow::setNetworkPic_json(const QString &date)
     // Start the event loop
     loop.exec();
     
+    // 判断是否超时
+    bool isTimeout = !timer.isActive();
+    if (!isTimeout) {
+        // 未超时，停止计时器
+        timer.stop();
+    }
+    
     bool success = false;
     
-    if (reply->error() == QNetworkReply::NoError) {
+    if (isTimeout) {
+        ui->label_2->setText(tr("获取壁纸信息超时"));
+        ui->label_2->adjustSize();
+        resetNetworkManager(); // 重置网络管理器
+    } else if (reply->error() != QNetworkReply::NoError) {
+        ui->label_2->setText(tr("网络请求失败: ") + reply->errorString());
+        ui->label_2->adjustSize();
+        resetNetworkManager(); // 重置网络管理器
+    } else {
         QByteArray jsonData = reply->readAll();
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonData);
         
@@ -298,6 +322,8 @@ bool MainWindow::setNetworkPic_json(const QString &date)
                     } else {
                         ui->label_2->setText(tr("获取图片信息失败"));
                     }
+                } else {
+                    ui->label_2->setText(tr("未找到该日期壁纸数据"));
                 }
             } else {
                 ui->label_2->setText(tr("JSON格式不支持"));
@@ -305,11 +331,10 @@ bool MainWindow::setNetworkPic_json(const QString &date)
         } else {
             ui->label_2->setText(tr("JSON数据解析失败"));
         }
-    }  else {
-        ui->label_2->setText(tr("网络请求失败: ") + reply->errorString());
-        ui->label_2->adjustSize();
     }
 
+    // 确保彻底释放网络资源
+    reply->disconnect();
     reply->deleteLater();
     
     // Re-enable UI components
@@ -332,33 +357,41 @@ void MainWindow::setNetworkPic(const QString &imgurl)
     timer.setSingleShot(true);
     timer.start(5000);
 
-    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
+    QNetworkRequest request(url);
+    QNetworkReply *reply = networkManager->get(request);
     
     // 连接超时信号和完成信号
-    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    connect(&timer, &QTimer::timeout, [&loop, reply]() {
+        reply->abort();
+        loop.quit();
+    });
     connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     
     // 开启事件循环
     loop.exec();
     
     // 判断是否超时
-    if (timer.isActive()) {
+    bool isTimeout = !timer.isActive();
+    if (!isTimeout) {
         // 未超时，停止计时器
         timer.stop();
-    } else {
-        // 超时处理
-        reply->abort();
-        ui->label_2->setText(tr("预览图片下载超时"));
-        ui->label_2->adjustSize();
-        reply->deleteLater();
-        return;
     }
 
-    // 检查网络请求是否成功
-    if (reply->error() != QNetworkReply::NoError) {
-        ui->label_2->setText(tr("预览图片下载失败: ") + reply->errorString());
+    // 在超时情况下处理
+    if (isTimeout || reply->error() != QNetworkReply::NoError) {
+        QString errorMsg = isTimeout ? 
+            tr("预览图片下载超时") : 
+            tr("预览图片下载失败: ") + reply->errorString();
+        
+        ui->label_2->setText(errorMsg);
         ui->label_2->adjustSize();
+        
+        // 确保彻底释放网络资源
+        reply->disconnect();
         reply->deleteLater();
+        
+        // 重置网络管理器
+        resetNetworkManager();
         return;
     }
 
@@ -367,6 +400,9 @@ void MainWindow::setNetworkPic(const QString &imgurl)
     pixmap.loadFromData(jpegData);
     QPixmap dest=pixmap.scaled(ui->label->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation);
     ui->label->setPixmap(dest);
+    
+    // 确保彻底释放网络资源
+    reply->disconnect();
     reply->deleteLater();
 }
 
@@ -432,7 +468,12 @@ void MainWindow::downloadAndSaveWallpaper()
     // Copy the temporary file to the Pictures directory
     QFile::copy(currentImgPath, finalFilePath);
 
-    QMessageBox::information(this, tr("成功"), tr("图片已保存至:\n%1").arg(finalFilePath));
+    QMessageBox msgBox;
+    msgBox.setWindowTitle(tr("成功"));
+    msgBox.setText(tr("图片已保存至:\n%1").arg(finalFilePath));
+    msgBox.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    msgBox.setIcon(QMessageBox::Information);
+    msgBox.exec();
 }
 
 void MainWindow::randomUpdateWallpaper()
@@ -458,41 +499,45 @@ bool MainWindow::downloadImage()
     QEventLoop loop;
     QTimer timer;
     
-    // 设置超时时间为5秒
+    // 设置超时时间
     timer.setSingleShot(true);
-    timer.start(5000);
+    timer.start(8000);
 
     QNetworkRequest request(url);
     QNetworkReply *reply = networkManager->get(request);
     
     // 连接超时信号和完成信号
-    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    connect(&timer, &QTimer::timeout, [&loop, reply]() {
+        reply->abort();
+        loop.quit();
+    });
     connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     
     // 开启事件循环
     loop.exec();
     
     // 判断是否超时
-    if (timer.isActive()) {
+    bool isTimeout = !timer.isActive();
+    if (!isTimeout) {
         // 未超时，停止计时器
         timer.stop();
-    } else {
-        // 超时处理
-        reply->abort();
-        // QMessageBox::warning(this, tr("错误"), tr("下载壁纸超时"));
-        ui->label_2->setText(tr("下载壁纸超时: ") + url.toString());
-        ui->label_2->adjustSize();
-        reply->deleteLater();
-        resetUpdateTimer();
-        return false;
     }
 
-    // 检查网络请求是否成功
-    if (reply->error() != QNetworkReply::NoError) {
-        // QMessageBox::warning(this, tr("错误"), tr("下载壁纸失败: ") + reply->errorString());
-        ui->label_2->setText(tr("下载壁纸失败: ") + reply->errorString());
+    // 在超时或错误情况下处理
+    if (isTimeout || reply->error() != QNetworkReply::NoError) {
+        QString errorMsg = isTimeout ? 
+            tr("下载壁纸超时: ") + url.toString() : 
+            tr("下载壁纸失败: ") + reply->errorString();
+        
+        ui->label_2->setText(errorMsg);
         ui->label_2->adjustSize();
+        
+        // 确保彻底释放网络资源
+        reply->disconnect();
         reply->deleteLater();
+        
+        // 重置网络管理器
+        resetNetworkManager();
         resetUpdateTimer();
         return false;
     }
@@ -505,15 +550,28 @@ bool MainWindow::downloadImage()
         file.close();
         currentImgPath = finalPath;
     } else {
-        // QMessageBox::warning(this, tr("错误"), tr("无法保存壁纸到临时文件!"));
         ui->label_2->setText(tr("无法保存壁纸到临时文件!"));
+        // 确保彻底释放网络资源
+        reply->disconnect();
         reply->deleteLater();
+        resetNetworkManager();
         resetUpdateTimer();
         return false;
     }
 
+    // 确保彻底释放网络资源
+    reply->disconnect();
     reply->deleteLater();
 
     resetUpdateTimer();
     return true;
+}
+
+void MainWindow::resetNetworkManager()
+{
+    if (networkManager) {
+        networkManager->deleteLater();
+    }
+    
+    networkManager = new QNetworkAccessManager(this);
 }

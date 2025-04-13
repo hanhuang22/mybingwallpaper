@@ -83,6 +83,7 @@ private:
     bool setNetworkPic_json(const QString &date);
     void setNetworkPic(const QString &imgurl);
     QIcon getApplicationIcon();
+    void resetNetworkManager();
     
     // Image download and application methods
     void downloadAndSetWallpaper();

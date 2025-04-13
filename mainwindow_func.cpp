@@ -286,6 +286,10 @@ bool MainWindow::setAutoStart(bool enable)
 {
     QSettings settings("HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
                        QSettings::NativeFormat);
+    
+    // another place to set for run as admin
+    QSettings settings2("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
+                       QSettings::NativeFormat);
 
     if (enable) {
         // 获取应用程序的完整路径
@@ -294,9 +298,11 @@ bool MainWindow::setAutoStart(bool enable)
         appPath.replace("/", "\\");
         // 在注册表中添加自启动项
         settings.setValue("MyBingWallpaper", appPath);
+        settings2.setValue("MyBingWallpaper", appPath);
     } else {
         // 从注册表中移除自启动项
         settings.remove("MyBingWallpaper");
+        settings2.remove("MyBingWallpaper");
     }
 
     return true;
@@ -306,9 +312,11 @@ bool MainWindow::isAutoStartEnabled()
 {
     QSettings settings("HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
                        QSettings::NativeFormat);
+    QSettings settings2("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
+                       QSettings::NativeFormat);
 
     // Check if the key exists
-    if (!settings.contains("MyBingWallpaper")) {
+    if (!settings.contains("MyBingWallpaper") || !settings2.contains("MyBingWallpaper")) {
         return false;
     }
     
