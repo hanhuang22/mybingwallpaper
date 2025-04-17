@@ -95,8 +95,8 @@ def generate_markdown_for_month(month_key):
         if "bing.com" in url:
             preview_url = url+"&w=480"
 
-        # Create markdown for image
-        image_markdown = f"![{title}]({preview_url})[{title}]({url})"
+        # Create markdown for image with fixed size
+        image_markdown = f"<a href=\"{url}\" target=\"_blank\"><img src=\"{preview_url}\" width=\"240\" height=\"135\" alt=\"{title}\" title=\"{title}\"></a><br>{date}<br>"
         row_images.append(image_markdown)
         
         # Add row if we have 4 images
@@ -167,8 +167,8 @@ def update_readme(months):
         if "bing.com" in url:
             preview_url = url+"&w=480"
         
-        # Create markdown for image
-        image_markdown = f"![{title}]({preview_url})[{title}]({url})"
+        # Create markdown for image with fixed size
+        image_markdown = f"<a href=\"{url}\" target=\"_blank\"><img src=\"{preview_url}\" width=\"240\" height=\"135\" alt=\"{title}\" title=\"{title}\"></a><br>{date}<br>"
         row_images.append(image_markdown)
         
         # Add row if we have 4 images
@@ -199,11 +199,11 @@ def update_readme(months):
     
     # Sort years in descending order
     for year in sorted(years.keys(), reverse=True):
-        # Sort months in descending order for each year
+        # Sort months in ascending order for each year
         sorted_months = sorted(years[year])
         
         # Create a row with months for this year
-        readme_content += f"**{year}**: "
+        readme_content += f"**{year}**: | "
         month_links = []
         
         for month in sorted_months:
