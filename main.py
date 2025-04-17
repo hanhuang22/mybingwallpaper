@@ -4,6 +4,7 @@ import json
 import time
 import os
 from ali_oss import bucket
+import importlib.util
 
 # work_list = [
 #     "de-DE", "en-CA", "en-GB", "en-IN", "en-US", "fr-FR", "it-IT", "ja-JP", "zh-CN"
@@ -63,6 +64,9 @@ def main(run_type):
     # Create the output directory if it doesn't exist
     os.makedirs('month', exist_ok=True)
     
+    # Get the affected months (for which we have new data)
+    affected_months = list(monthly_data.keys())
+    
     # Save each month's data to a separate file
     for month_key, month_data in monthly_data.items():
         file_path = os.path.join('month', f"{month_key}.json")
@@ -92,6 +96,22 @@ def main(run_type):
             print(f"[{get_now_time()}] 上传文件 {file_path} 失败: {e}")
         
         print(f"[{get_now_time()}] 保存文件 {file_path} 成功")
+    
+    # Generate markdown files and update README
+    print(f"[{get_now_time()}] 开始生成 Markdown 文件")
+    try:
+        # Import the generate_markdown module
+        spec = importlib.util.spec_from_file_location("generate_markdown", "generate_markdown.py")
+        generate_markdown = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generate_markdown)
+        
+        # Only update the markdown files for affected months
+        months = generate_markdown.update_selected_months(affected_months)
+        generate_markdown.update_readme(months)
+        
+        print(f"[{get_now_time()}] Markdown 文件生成完成")
+    except Exception as e:
+        print(f"[{get_now_time()}] 生成 Markdown 文件失败: {e}")
 
 
 if __name__ == "__main__":
