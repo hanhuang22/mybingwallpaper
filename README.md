@@ -6,7 +6,7 @@ Daily Bing wallpapers collection
 
 | | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
-| <a href="https://cn.bing.com/th?id=OHR.EchinaceaButterfly_ZH-CN7877489878_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.EchinaceaButterfly_ZH-CN7877489878_UHD.jpg&w=480" width="240" height="135" alt="一只停在紫锥菊上的灰蝶，洛克菲勒州立公园，纽约 © Marianne A. Campolongo/Alamy  -  2025/06/02" title="一只停在紫锥菊上的灰蝶，洛克菲勒州立公园，纽约 © Marianne A. Campolongo/Alamy  -  2025/06/02"></a><br>2025-06-02<br> |  |  |  |
+| <a href="https://cn.bing.com/th?id=OHR.BicyclesUtrecht_ZH-CN8016028978_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.BicyclesUtrecht_ZH-CN8016028978_UHD.jpg&w=480" width="240" height="135" alt="乌得勒支桥上的自行车，荷兰 © George Pachantouris/Getty Images  -  2025/06/03" title="乌得勒支桥上的自行车，荷兰 © George Pachantouris/Getty Images  -  2025/06/03"></a><br>2025-06-03<br> | <a href="https://cn.bing.com/th?id=OHR.EchinaceaButterfly_ZH-CN7877489878_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.EchinaceaButterfly_ZH-CN7877489878_UHD.jpg&w=480" width="240" height="135" alt="一只停在紫锥菊上的灰蝶，洛克菲勒州立公园，纽约 © Marianne A. Campolongo/Alamy  -  2025/06/02" title="一只停在紫锥菊上的灰蝶，洛克菲勒州立公园，纽约 © Marianne A. Campolongo/Alamy  -  2025/06/02"></a><br>2025-06-02<br> |  |  |
 
 ## Archive
 
