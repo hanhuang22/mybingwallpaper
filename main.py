@@ -5,6 +5,7 @@ import time
 import os
 from ali_oss import bucket
 import importlib.util
+from datetime import datetime, timedelta
 
 # work_list = [
 #     "de-DE", "en-CA", "en-GB", "en-IN", "en-US", "fr-FR", "it-IT", "ja-JP", "zh-CN"
@@ -28,9 +29,14 @@ def main(run_type):
     for image_data in data_list:
         # Extract required values
         ssd = image_data.get('Ssd', '')
-        enddate = str(int(ssd[:8])+1)
+
+        # 使用 datetime 正确处理日期
+        current_date = datetime.strptime(ssd[:8], '%Y%m%d')
+        next_date = current_date + timedelta(days=1)
+        enddate = next_date.strftime('%Y%m%d')
         image_data = image_data.get('ImageContent', '')
-        date = enddate[:4] + '-' + enddate[4:6] + '-' + enddate[6:8]
+        date = next_date.strftime('%Y-%m-%d')
+        
         headline = image_data.get('Headline', '')
         title = image_data.get('Title', '')
         copyright_text = image_data.get('Copyright', '')
