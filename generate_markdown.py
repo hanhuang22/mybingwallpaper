@@ -54,6 +54,13 @@ def update_selected_months(month_keys):
     all_months.sort(reverse=True)
     return all_months
 
+def sanitize_html_attribute(text):
+    """清理 HTML 属性值，替换双引号和其他潜在问题字符"""
+    if text is None:
+        return ""
+    # 将双引号替换为单引号或 HTML 实体
+    return text.replace('"', '&quot;')
+
 def generate_markdown_for_month(month_key):
     """Generate markdown file for a specific month"""
     month_file = os.path.join('month', f"{month_key}.json")
@@ -96,7 +103,7 @@ def generate_markdown_for_month(month_key):
             preview_url = url+"&w=480"
 
         # Create markdown for image with fixed size
-        image_markdown = f"<a href=\"{url}\" target=\"_blank\"><img src=\"{preview_url}\" width=\"240\" height=\"135\" alt=\"{title}\" title=\"{title}\"></a><br>{date}<br>"
+        image_markdown = f"<a href=\"{url}\" target=\"_blank\"><img src=\"{preview_url}\" width=\"240\" height=\"135\" alt=\"{sanitize_html_attribute(title)}\" title=\"{sanitize_html_attribute(title)}\"></a><br>{date}<br>"
         row_images.append(image_markdown)
         
         # Add row if we have 4 images
@@ -168,7 +175,7 @@ def update_readme(months):
             preview_url = url+"&w=480"
         
         # Create markdown for image with fixed size
-        image_markdown = f"<a href=\"{url}\" target=\"_blank\"><img src=\"{preview_url}\" width=\"240\" height=\"135\" alt=\"{title}\" title=\"{title}\"></a><br>{date}<br>"
+        image_markdown = f"<a href=\"{url}\" target=\"_blank\"><img src=\"{preview_url}\" width=\"240\" height=\"135\" alt=\"{sanitize_html_attribute(title)}\" title=\"{sanitize_html_attribute(title)}\"></a><br>{date}<br>"
         row_images.append(image_markdown)
         
         # Add row if we have 4 images
@@ -221,4 +228,4 @@ def update_readme(months):
 
 if __name__ == "__main__":
     months = generate_monthly_markdown()
-    update_readme(months) 
+    update_readme(months)
