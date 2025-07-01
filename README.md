@@ -6,7 +6,7 @@ Daily Bing wallpapers collection
 
 | | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
-| <a href="https://cn.bing.com/th?id=OHR.CanadaDayFogo_ZH-CN2593963748_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.CanadaDayFogo_ZH-CN2593963748_UHD.jpg&w=480" width="240" height="135" alt="Tilting渔村, 福戈岛 , 纽芬兰和拉布拉多省, 加拿大 © FedevPhoto/Getty Images  -  2025/07/01" title="Tilting渔村, 福戈岛 , 纽芬兰和拉布拉多省, 加拿大 © FedevPhoto/Getty Images  -  2025/07/01"></a><br>2025-07-01<br> |  |  |  |
+| <a href="https://cn.bing.com/th?id=OHR.MaroonClownfish_ZH-CN5071934692_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.MaroonClownfish_ZH-CN5071934692_UHD.jpg&w=480" width="240" height="135" alt="被泡尖海葵包围的刺颊海葵鱼，米尔恩湾，巴布亚新几内亚 © Fred Bavendam/Nature Picture Library  -  2025/07/02" title="被泡尖海葵包围的刺颊海葵鱼，米尔恩湾，巴布亚新几内亚 © Fred Bavendam/Nature Picture Library  -  2025/07/02"></a><br>2025-07-02<br> | <a href="https://cn.bing.com/th?id=OHR.CanadaDayFogo_ZH-CN2593963748_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.CanadaDayFogo_ZH-CN2593963748_UHD.jpg&w=480" width="240" height="135" alt="Tilting渔村, 福戈岛 , 纽芬兰和拉布拉多省, 加拿大 © FedevPhoto/Getty Images  -  2025/07/01" title="Tilting渔村, 福戈岛 , 纽芬兰和拉布拉多省, 加拿大 © FedevPhoto/Getty Images  -  2025/07/01"></a><br>2025-07-01<br> |  |  |
 
 ## Archive
 
