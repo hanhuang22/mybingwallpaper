@@ -6,7 +6,7 @@ Daily Bing wallpapers collection
 
 | | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
-| <a href="https://cn.bing.com/th?id=OHR.ScottsBluff_ZH-CN0292735112_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.ScottsBluff_ZH-CN0292735112_UHD.jpg&w=480" width="240" height="135" alt="杰灵的斯科茨布拉夫国家纪念碑‌, 内布拉斯加州,美国 © Hawk Buckman/Getty Images  -  2025/09/01" title="杰灵的斯科茨布拉夫国家纪念碑‌, 内布拉斯加州,美国 © Hawk Buckman/Getty Images  -  2025/09/01"></a><br>2025-09-01<br> |  |  |  |
+| <a href="https://cn.bing.com/th?id=OHR.FieldKaiserstuhl_ZH-CN0467488834_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.FieldKaiserstuhl_ZH-CN0467488834_UHD.jpg&w=480" width="240" height="135" alt="凯撒施图尔，巴登-符腾堡，德国 © EyeEM Mobile GmbH/Getty Images  -  2025/09/02" title="凯撒施图尔，巴登-符腾堡，德国 © EyeEM Mobile GmbH/Getty Images  -  2025/09/02"></a><br>2025-09-02<br> | <a href="https://cn.bing.com/th?id=OHR.ScottsBluff_ZH-CN0292735112_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.ScottsBluff_ZH-CN0292735112_UHD.jpg&w=480" width="240" height="135" alt="杰灵的斯科茨布拉夫国家纪念碑‌, 内布拉斯加州,美国 © Hawk Buckman/Getty Images  -  2025/09/01" title="杰灵的斯科茨布拉夫国家纪念碑‌, 内布拉斯加州,美国 © Hawk Buckman/Getty Images  -  2025/09/01"></a><br>2025-09-01<br> |  |  |
 
 ## Archive
 
