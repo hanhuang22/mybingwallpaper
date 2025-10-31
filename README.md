@@ -6,7 +6,7 @@ Daily Bing wallpapers collection
 
 | | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
-| <a href="https://cn.bing.com/th?id=OHR.BranCastle_ZH-CN3879660917_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.BranCastle_ZH-CN3879660917_UHD.jpg&w=480" width="240" height="135" alt="布兰城堡入口, 布拉索夫, 罗马尼亚 © blue sky in my pocket/Getty Images  -  2025/11/01" title="布兰城堡入口, 布拉索夫, 罗马尼亚 © blue sky in my pocket/Getty Images  -  2025/11/01"></a><br>2025-11-01<br> |  |  |  |
+| <a href="https://cn.bing.com/th?id=OHR.BisonSprings_ZH-CN4419733534_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.BisonSprings_ZH-CN4419733534_UHD.jpg&w=480" width="240" height="135" alt="野牛在温泉边吃草,  黄石国家公园, 怀俄明州, 美国 © Cheryl Ramalho/Getty Images  -  2025/11/02" title="野牛在温泉边吃草,  黄石国家公园, 怀俄明州, 美国 © Cheryl Ramalho/Getty Images  -  2025/11/02"></a><br>2025-11-02<br> | <a href="https://cn.bing.com/th?id=OHR.BranCastle_ZH-CN3879660917_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.BranCastle_ZH-CN3879660917_UHD.jpg&w=480" width="240" height="135" alt="布兰城堡入口, 布拉索夫, 罗马尼亚 © blue sky in my pocket/Getty Images  -  2025/11/01" title="布兰城堡入口, 布拉索夫, 罗马尼亚 © blue sky in my pocket/Getty Images  -  2025/11/01"></a><br>2025-11-01<br> |  |  |
 
 ## Archive
 
