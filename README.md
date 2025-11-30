@@ -6,7 +6,7 @@ Daily Bing wallpapers collection
 
 | | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
-| <a href="https://cn.bing.com/th?id=OHR.LeipzigMarket_ZH-CN1517513161_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.LeipzigMarket_ZH-CN1517513161_UHD.jpg&w=480" width="240" height="135" alt="莱比锡圣诞集市, 德国 © Krzysztof Baranowski/Getty Images  -  2025/12/01" title="莱比锡圣诞集市, 德国 © Krzysztof Baranowski/Getty Images  -  2025/12/01"></a><br>2025-12-01<br> |  |  |  |
+| <a href="https://cn.bing.com/th?id=OHR.AntarcticArch_ZH-CN1622701432_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.AntarcticArch_ZH-CN1622701432_UHD.jpg&w=480" width="240" height="135" alt="冰山上天然形成的拱门, 南极洲 © Gabrielle/Adobe Stock  -  2025/12/02" title="冰山上天然形成的拱门, 南极洲 © Gabrielle/Adobe Stock  -  2025/12/02"></a><br>2025-12-02<br> | <a href="https://cn.bing.com/th?id=OHR.LeipzigMarket_ZH-CN1517513161_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.LeipzigMarket_ZH-CN1517513161_UHD.jpg&w=480" width="240" height="135" alt="莱比锡圣诞集市, 德国 © Krzysztof Baranowski/Getty Images  -  2025/12/01" title="莱比锡圣诞集市, 德国 © Krzysztof Baranowski/Getty Images  -  2025/12/01"></a><br>2025-12-01<br> |  |  |
 
 ## Archive
 
