@@ -6,7 +6,7 @@ Daily Bing wallpapers collection
 
 | | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
-| <a href="https://cn.bing.com/th?id=OHR.EtoshaZebra_ZH-CN6068087794_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.EtoshaZebra_ZH-CN6068087794_UHD.jpg&w=480" width="240" height="135" alt="平原斑马, 埃托沙国家公园, 纳米比亚 © Mogens Trolle/Shutterstock  -  2026/02/01" title="平原斑马, 埃托沙国家公园, 纳米比亚 © Mogens Trolle/Shutterstock  -  2026/02/01"></a><br>2026-02-01<br> |  |  |  |
+| <a href="https://cn.bing.com/th?id=OHR.Olinda_ZH-CN6216385346_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.Olinda_ZH-CN6216385346_UHD.jpg&w=480" width="240" height="135" alt="奥林达的彩色房子, 巴西 © Robert Pekar/Alamy  -  2026/02/02" title="奥林达的彩色房子, 巴西 © Robert Pekar/Alamy  -  2026/02/02"></a><br>2026-02-02<br> | <a href="https://cn.bing.com/th?id=OHR.EtoshaZebra_ZH-CN6068087794_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.EtoshaZebra_ZH-CN6068087794_UHD.jpg&w=480" width="240" height="135" alt="平原斑马, 埃托沙国家公园, 纳米比亚 © Mogens Trolle/Shutterstock  -  2026/02/01" title="平原斑马, 埃托沙国家公园, 纳米比亚 © Mogens Trolle/Shutterstock  -  2026/02/01"></a><br>2026-02-01<br> |  |  |
 
 ## Archive
 
