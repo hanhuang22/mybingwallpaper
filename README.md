@@ -6,7 +6,7 @@ Daily Bing wallpapers collection
 
 | | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
-| <a href="https://cn.bing.com/th?id=OHR.VirginiaTrail_ZH-CN2299501599_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.VirginiaTrail_ZH-CN2299501599_UHD.jpg&w=480" width="240" height="135" alt="鸟瞰弗吉尼亚爬山虎步道，达马斯克斯，弗吉尼亚州，美国 © Eifel Kreutz/Getty Images  -  2026/08/01" title="鸟瞰弗吉尼亚爬山虎步道，达马斯克斯，弗吉尼亚州，美国 © Eifel Kreutz/Getty Images  -  2026/08/01"></a><br>2026-08-01<br> |  |  |  |
+| <a href="https://cn.bing.com/th?id=OHR.HawaiiLava_ZH-CN3257621771_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.HawaiiLava_ZH-CN3257621771_UHD.jpg&w=480" width="240" height="135" alt="大批熔岩流涌入大洋，大岛，夏威夷州，美国 © Ken McCurdy/Getty Images  -  2026/08/02" title="大批熔岩流涌入大洋，大岛，夏威夷州，美国 © Ken McCurdy/Getty Images  -  2026/08/02"></a><br>2026-08-02<br> | <a href="https://cn.bing.com/th?id=OHR.VirginiaTrail_ZH-CN2299501599_UHD.jpg" target="_blank"><img src="https://cn.bing.com/th?id=OHR.VirginiaTrail_ZH-CN2299501599_UHD.jpg&w=480" width="240" height="135" alt="鸟瞰弗吉尼亚爬山虎步道，达马斯克斯，弗吉尼亚州，美国 © Eifel Kreutz/Getty Images  -  2026/08/01" title="鸟瞰弗吉尼亚爬山虎步道，达马斯克斯，弗吉尼亚州，美国 © Eifel Kreutz/Getty Images  -  2026/08/01"></a><br>2026-08-01<br> |  |  |
 
 ## Archive
 
