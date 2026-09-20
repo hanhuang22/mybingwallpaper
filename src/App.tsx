@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Settings as SettingsIcon,
   Shuffle,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -172,21 +171,6 @@ function App() {
   return (
     <main className="app-shell">
       <div className="ambient" aria-hidden="true" />
-      <header className="app-header">
-        <div className="brand">
-          <span className="brand-mark"><Sparkles size={18} /></span>
-          <span>必应壁纸</span>
-        </div>
-        <div className="header-actions">
-          <span className="platform-label">
-            {platform === "macos" ? "macOS" : platform === "windows" ? "Windows" : "预览模式"}
-          </span>
-          <button className="icon-button" type="button" aria-label="打开设置" onClick={() => setSettingsOpen(true)}>
-            <SettingsIcon size={19} />
-          </button>
-        </div>
-      </header>
-
       <section className="wallpaper-stage" aria-busy={action === "loading"}>
         {wallpaper ? (
           <img className="wallpaper-image" src={wallpaper.imageUrl} alt={title.headline} />
@@ -232,6 +216,9 @@ function App() {
           </button>
           <button className="button primary" type="button" disabled={!wallpaper || Boolean(action)} onClick={applyWallpaper}>
             <MonitorDown size={18} /> 设为壁纸
+          </button>
+          <button className="icon-button dock-settings" type="button" aria-label="打开设置" title="设置" onClick={() => setSettingsOpen(true)}>
+            <SettingsIcon size={19} />
           </button>
         </div>
       </section>

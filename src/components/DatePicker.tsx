@@ -49,6 +49,13 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
   const [viewDate, setViewDate] = useState(selectedDate);
   const rootRef = useRef<HTMLDivElement>(null);
   const calendarDays = useMemo(() => buildCalendar(viewDate), [viewDate]);
+  const years = useMemo(
+    () => Array.from(
+      { length: maximumDate.getFullYear() - minimumDate.getFullYear() + 1 },
+      (_, index) => maximumDate.getFullYear() - index,
+    ),
+    [maximumDate, minimumDate],
+  );
 
   useEffect(() => {
     if (!open) setViewDate(selectedDate);
@@ -74,6 +81,17 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
 
   const moveMonth = (amount: number) => {
     setViewDate((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1, 12));
+  };
+
+  const changeYear = (year: number) => {
+    const earliestMonth = year === minimumDate.getFullYear() ? minimumDate.getMonth() : 0;
+    const latestMonth = year === maximumDate.getFullYear() ? maximumDate.getMonth() : 11;
+    const nextMonth = Math.min(Math.max(viewDate.getMonth(), earliestMonth), latestMonth);
+    setViewDate(new Date(year, nextMonth, 1, 12));
+  };
+
+  const changeMonth = (month: number) => {
+    setViewDate(new Date(viewDate.getFullYear(), month, 1, 12));
   };
 
   const selectDate = (date: Date) => {
@@ -112,7 +130,26 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
             >
               <ChevronLeft size={18} />
             </button>
-            <strong>{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</strong>
+            <div className="calendar-period">
+              <select
+                aria-label="选择年份"
+                value={viewDate.getFullYear()}
+                onChange={(event) => changeYear(Number(event.target.value))}
+              >
+                {years.map((year) => <option key={year} value={year}>{year}年</option>)}
+              </select>
+              <select
+                aria-label="选择月份"
+                value={viewDate.getMonth()}
+                onChange={(event) => changeMonth(Number(event.target.value))}
+              >
+                {Array.from({ length: 12 }, (_, month) => {
+                  const key = viewDate.getFullYear() * 12 + month;
+                  const disabled = key < monthKey(minimumDate) || key > monthKey(maximumDate);
+                  return <option key={month} value={month} disabled={disabled}>{month + 1}月</option>;
+                })}
+              </select>
+            </div>
             <button
               className="calendar-nav"
               type="button"

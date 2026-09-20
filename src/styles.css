@@ -12,10 +12,10 @@ html, body, #root { min-width: 320px; min-height: 100%; margin: 0; }
 
 body { overflow: hidden; }
 
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { color: inherit; }
 
-button:focus-visible, input:focus-visible {
+button:focus-visible, input:focus-visible, select:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.9);
   outline-offset: 2px;
 }
@@ -23,7 +23,7 @@ button:focus-visible, input:focus-visible {
 .app-shell {
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 16px;
   min-height: 100vh;
   padding: 18px;
@@ -40,34 +40,12 @@ button:focus-visible, input:focus-visible {
   animation: drift 18s ease-in-out infinite alternate;
 }
 
-.app-header, .wallpaper-stage, .control-dock { position: relative; z-index: 1; }
+.wallpaper-stage, .control-dock { position: relative; z-index: 1; }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 38px;
-  padding: 0 2px;
-}
-
-.brand, .header-actions, .date-navigation, .primary-actions, .eyebrow, .button, .toast button {
+.date-navigation, .primary-actions, .eyebrow, .button, .toast button {
   display: flex;
   align-items: center;
 }
-
-.brand { gap: 10px; font-weight: 650; letter-spacing: 0.01em; }
-.brand-mark {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: 10px;
-  background: linear-gradient(145deg, #8b5cf6, #3b82f6);
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35);
-}
-
-.header-actions { gap: 10px; }
-.platform-label { color: rgba(255,255,255,.62); font-size: 12px; }
 
 .icon-button, .text-button {
   border: 0;
@@ -182,7 +160,22 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   align-items: center;
   margin-bottom: 10px;
 }
-.calendar-heading strong { text-align: center; font-size: 14px; letter-spacing: .02em; }
+.calendar-period { display: flex; justify-content: center; gap: 4px; }
+.calendar-period select {
+  min-width: 70px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #fff;
+  color-scheme: dark;
+  background: rgba(255,255,255,.07);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: center;
+}
+.calendar-period select:last-child { min-width: 60px; }
+.calendar-period select:hover { border-color: rgba(165,180,252,.34); background: rgba(255,255,255,.11); }
 .calendar-nav {
   display: grid;
   width: 32px;
@@ -274,6 +267,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .button.secondary:hover:not(:disabled) { background: rgba(255,255,255,.17); }
 .button.primary { background: #f8fafc; color: #111827; box-shadow: 0 8px 24px rgba(0,0,0,.22); }
 .button.primary:hover:not(:disabled) { background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.32); }
+.dock-settings { flex: 0 0 auto; margin-left: 2px; }
 
 .toast {
   position: absolute;
