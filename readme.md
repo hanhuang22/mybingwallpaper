@@ -36,8 +36,16 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 
 安装包通过 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 发布：
 
-- Windows：x64、x86 与 ARM64，提供 MSI 和 NSIS 安装包。
-- macOS：Apple Silicon 与 Intel，提供 DMG。
+| 文件名格式 | 适用系统 |
+| --- | --- |
+| `mybingwallpaper-v<版本>-windows-x64-setup.exe` | Windows 10/11，Intel 或 AMD 64 位（推荐安装程序） |
+| `mybingwallpaper-v<版本>-windows-x64.msi` | Windows 10/11，Intel 或 AMD 64 位（MSI） |
+| `mybingwallpaper-v<版本>-windows-x86-setup.exe` | 32 位 Windows（安装程序） |
+| `mybingwallpaper-v<版本>-windows-x86.msi` | 32 位 Windows（MSI） |
+| `mybingwallpaper-v<版本>-windows-arm64-setup.exe` | Windows on ARM（安装程序） |
+| `mybingwallpaper-v<版本>-windows-arm64.msi` | Windows on ARM（MSI） |
+| `mybingwallpaper-v<版本>-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
+| `mybingwallpaper-v<版本>-macos-intel.dmg` | Intel Mac |
 
 向 `main` 推送代码时，GitHub Actions 会验证上述五种目标能否构建；推送 `v*` 版本标签时，才会创建或更新对应的 GitHub Release 并上传安装包。当前安装包尚未配置商业代码签名，Windows 可能显示 SmartScreen 提示，macOS 可能显示 Gatekeeper 提示。
 

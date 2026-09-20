@@ -13,10 +13,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-pc-windows-msvc
-          - i686-pc-windows-msvc
-          - aarch64-pc-windows-msvc
+        include:
+          - target: x86_64-pc-windows-msvc
+            asset: x64
+          - target: i686-pc-windows-msvc
+            asset: x86
+          - target: aarch64-pc-windows-msvc
+            asset: arm64
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -34,21 +37,33 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run tauri build -- --target ${{ matrix.target }}
+      - name: Prepare clearly named release assets
+        shell: pwsh
+        run: |
+          $bundle = "src-tauri/target/${{ matrix.target }}/release/bundle"
+          New-Item -ItemType Directory -Force release-assets | Out-Null
+          $msi = Get-ChildItem "$bundle/msi/*.msi" | Select-Object -First 1
+          $exe = Get-ChildItem "$bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if (-not $msi -or -not $exe) {
+            throw "Expected both MSI and NSIS installers for ${{ matrix.target }}"
+          }
+          Copy-Item $msi.FullName "release-assets/mybingwallpaper-${{ github.ref_name }}-windows-${{ matrix.asset }}.msi"
+          Copy-Item $exe.FullName "release-assets/mybingwallpaper-${{ github.ref_name }}-windows-${{ matrix.asset }}-setup.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.target }}
           if-no-files-found: error
-          path: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
-            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
+          path: release-assets/*
 
   macos:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - aarch64-apple-darwin
-          - x86_64-apple-darwin
+        include:
+          - target: aarch64-apple-darwin
+            asset: apple-silicon
+          - target: x86_64-apple-darwin
+            asset: intel
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
@@ -66,11 +81,17 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run tauri build -- --target ${{ matrix.target }}
+      - name: Prepare clearly named release asset
+        run: |
+          mkdir -p release-assets
+          dmg_path="$(find "src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -type f -name '*.dmg' -print | head -n 1)"
+          test -n "$dmg_path"
+          cp "$dmg_path" "release-assets/mybingwallpaper-${{ github.ref_name }}-macos-${{ matrix.asset }}.dmg"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.target }}
           if-no-files-found: error
-          path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          path: release-assets/*
 
   publish:
     needs: [windows, macos]
@@ -85,3 +106,18 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: release-assets/**/*
+          body: |
+            ## 安装包选择
+
+            | 文件名 | 适用系统 |
+            | --- | --- |
+            | `mybingwallpaper-${{ github.ref_name }}-windows-x64-setup.exe` | Windows 10/11，Intel 或 AMD 64 位（推荐安装程序） |
+            | `mybingwallpaper-${{ github.ref_name }}-windows-x64.msi` | Windows 10/11，Intel 或 AMD 64 位（MSI） |
+            | `mybingwallpaper-${{ github.ref_name }}-windows-x86-setup.exe` | 32 位 Windows（安装程序） |
+            | `mybingwallpaper-${{ github.ref_name }}-windows-x86.msi` | 32 位 Windows（MSI） |
+            | `mybingwallpaper-${{ github.ref_name }}-windows-arm64-setup.exe` | Windows on ARM（安装程序） |
+            | `mybingwallpaper-${{ github.ref_name }}-windows-arm64.msi` | Windows on ARM（MSI） |
+            | `mybingwallpaper-${{ github.ref_name }}-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
+            | `mybingwallpaper-${{ github.ref_name }}-macos-intel.dmg` | Intel Mac |
+
+            当前安装包未进行商业代码签名。Windows 可能显示 SmartScreen 提示，macOS 可能显示 Gatekeeper 提示。

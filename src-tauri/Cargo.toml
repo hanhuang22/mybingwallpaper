@@ -1,6 +1,6 @@
 [package]
 name = "my-bing-wallpaper"
-version = "0.3.1"
+version = "0.3.2"
 description = "A modern cross-platform Bing wallpaper app"
 authors = ["My Bing Wallpaper contributors"]
 edition = "2021"
