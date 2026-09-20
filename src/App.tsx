@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DatePicker } from "./components/DatePicker";
 import {
   addDays,
   defaultSettings,
@@ -211,16 +212,12 @@ function App() {
           <button className="icon-button" type="button" aria-label="前一天" onClick={() => setSelectedDate(addDays(selectedDate, -1))}>
             <ChevronLeft size={20} />
           </button>
-          <label className="date-field">
-            <span className="sr-only">选择日期</span>
-            <input
-              type="date"
-              min="2010-01-01"
-              max={today}
-              value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
-            />
-          </label>
+          <DatePicker
+            value={selectedDate}
+            minimum="2010-01-01"
+            maximum={today}
+            onChange={setSelectedDate}
+          />
           <button className="icon-button" type="button" aria-label="后一天" disabled={selectedDate >= today} onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
             <ChevronRight size={20} />
           </button>
