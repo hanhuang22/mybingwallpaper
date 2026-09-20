@@ -1,0 +1,27 @@
+[package]
+name = "my-bing-wallpaper"
+version = "0.3.0"
+description = "A modern cross-platform Bing wallpaper app"
+authors = ["My Bing Wallpaper contributors"]
+edition = "2021"
+
+[lib]
+name = "my_bing_wallpaper_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+chrono = { version = "0.4", features = ["clock", "serde"] }
+dirs = "6"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["tray-icon", "image-png", "image-ico"] }
+tauri-plugin-autostart = "2"
+tokio = { version = "1", features = ["time"] }
+url = "2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }

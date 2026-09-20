@@ -8,3 +8,19 @@ __pycache__/
 *.pyw
 *.pyz
 *.pywz
+.oss_key
+
+# macOS
+.DS_Store
+
+# Tauri / web frontend
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/android/
+src-tauri/icons/ios/
+*.log
+.env
+.env.*
+!.env.example

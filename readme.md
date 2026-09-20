@@ -1,49 +1,64 @@
-## <img src="mybingwallpaper.ico" width="32"> 必应壁纸 - My Bing Wallpaer
+# 必应壁纸 · My Bing Wallpaper
 
-### 🏠软件界面
+每天从必应壁纸档案中挑选、预览和应用桌面壁纸。新版使用 Tauri 2、React、TypeScript 与 Rust，支持 Windows 和 macOS。
 
-![主界面](img/main.png)
+> 当前现代化版本位于 `codex/tauri-migration` 分支。原 Qt 6 源码暂时保留在仓库根目录，用于功能对照和回退；完成双平台验证后再替换主分支。
 
-### 🔦使用
+## 新版功能
 
-- 双击启动/开机启动时启动到托盘，点击托盘图标显示主界面；点击关闭，最小化到托盘
+- 当日、历史日期和随机壁纸浏览
+- 原始分辨率图片下载与本地缓存
+- Windows 与 macOS 桌面壁纸设置
+- 系统托盘/菜单栏常驻，关闭窗口不退出
+- 每日自动更新与登录后自动启动
+- Windows 锁屏壁纸实验功能
+- 可缩放现代界面与高 DPI 适配
 
-- 设为壁纸：设置桌面壁纸
+macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁屏开关。Windows 锁屏功能受系统版本、策略和权限影响，失败时不会影响桌面壁纸设置。
 
-- 保存图片：保存至用户图片文件夹
+## 技术结构
 
-- 随机一张：随机一张壁纸；若设置了自动更新，会在一段时间后重新被更新为今日壁纸
+```text
+src/                    React + TypeScript 界面
+src-tauri/src/          Rust 应用核心与 Tauri 桌面端
+src-tauri/src/platform/ Windows / macOS 系统适配
+src-tauri/capabilities/ 前端权限边界
+```
 
-- 右击托盘图标，显示菜单选项
+网络下载、文件保存和系统调用都在 Rust 层完成；WebView 只负责界面和用户交互。
 
-- ![托盘](img/trayicon.png)
+## 本地开发
 
-- 每日更新：每15分钟尝试更新一次最新壁纸
+需要 Node.js 24、Rust stable，以及对应平台的系统构建工具。
 
-- 锁屏壁纸：立即通过修改注册表更改锁屏壁纸：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP；取消勾选后立即清除注册表内容
+```bash
+npm install
+npm test
+npm run tauri dev
+```
 
-- 开机自启：将程序添加到注册表：HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run；由于管理员权限（以修改锁屏壁纸），同时添加到32位的注册表以正常自启动： HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run；取消勾选后立即清除注册表内容
+仅调试界面时：
 
+```bash
+npm run dev
+```
 
-### 🛠️实现方式
+## 构建
 
-- 利用github action (workflow)，每日定时（16:10 UTC+0，即北京时间0:10）通过bing官方api获取图像标题和url并以json文件储存更新到github仓库，数据按月储存；但由于github Action的定时任务并不准时，会延迟几分钟；使用github page部署作为api访问；点击日历时获取该日期的github上的json文件，并解析得到图像标题和url，然后本地显示；
+```bash
+npm run tauri build
+```
 
-- 国内访问github可能有问题，因此将github仓库同步到gitee，然后从gitee仓库直接用raw文件获取json文件
+- macOS 生成 `.app` 和 DMG（正式分发前需要 Apple 签名与公证）。
+- Windows 生成 NSIS/MSI 安装包（正式分发建议配置代码签名）。
+- GitHub Actions 会在 Windows、macOS Intel 和 macOS Apple Silicon 环境执行测试及构建。
 
-- 已解决：Gitee的🐶💨内容审查制度，导致部分月份json文件被认为有问题，无法获取 -> 用阿里云oss存储
+## 数据源
 
-- QT6.9 实现界面
+- 月度元数据：`https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month/YYYYMM.json`
+- 2010/01/01—2018/12/30 的历史图片数据来自 [bing.ee123.net](https://bing.ee123.net/)。
+- 之后的数据来自必应图片源；有 4K 原图时优先使用 4K 地址。
 
-### ⁉️问题
+## 旧版 Qt 功能说明
 
-- 若出现加载超时，可能为网络问题，可尝试重新加载
-
-- 若锁屏修改失败，右击以管理员权限启动
-
-
-### 🖼️数据源
-
-- 2010/01/01-2018/12/30的图像数据将加载自[https://bing.ee123.net/](https://bing.ee123.net/)，感谢❤️；后续日期从bing官方源加载
-
-- 图片分辨率：2016/03/14及之前分辨率似乎较低，到2019/05/09似乎为1080P，之后有4k源图像则加载4K图像
+旧版基于 Qt 6 Widgets，仅支持 Windows，包含托盘、每日更新、锁屏壁纸和注册表开机启动。它使用同步事件循环等待网络请求，并且界面固定为 700×300；这些实现仅作为迁移期间的行为参考，不会进入新版架构。
