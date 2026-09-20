@@ -42,8 +42,38 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
 
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+      - run: npm ci
+      - run: npm test
+      - run: npm run tauri build -- --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.target }}
+          if-no-files-found: error
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+
   publish:
-    needs: windows
+    needs: [windows, macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v5

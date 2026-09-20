@@ -103,7 +103,7 @@ npm run tauri build
 
 macOS 会生成 `.app` 和 DMG；正式分发前需要 Apple 签名与公证。
 
-GitHub Actions 会构建 Windows x64、x86、ARM64，以及 macOS Intel 和 Apple Silicon。推送 `v*` 标签时，发布工作流会将三个 Windows 架构的 MSI/NSIS 安装包附加到对应 GitHub Release。
+GitHub Actions 会构建 Windows x64、x86、ARM64，以及 macOS Intel 和 Apple Silicon。推送 `v*` 标签时，发布工作流会将三个 Windows 架构的 MSI/NSIS 安装包，以及两个 macOS 架构的 DMG 附加到对应 GitHub Release。
 
 ## 数据源
 
