@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f1e9" />
+    <meta
+      name="description"
+      content="必应壁纸是一款面向 Windows 与 macOS 的开源桌面壁纸应用，支持每日更新、历史浏览与自动更换。"
+    />
+    <meta property="og:title" content="必应壁纸 · 每天一张好风景" />
+    <meta
+      property="og:description"
+      content="浏览每日精选壁纸，下载适用于 Windows 与 macOS 的轻量桌面应用。"
+    />
+    <meta
+      property="og:image"
+      content="https://raw.githubusercontent.com/hanhuang22/mybingwallpaper/main/docs/screenshots/main.png"
+    />
+    <title>必应壁纸 · 每天一张好风景</title>
+    <link rel="preconnect" href="https://cn.bing.com" />
+    <link rel="preconnect" href="https://raw.githubusercontent.com" />
+    <link rel="stylesheet" href="assets/site.css" />
+    <script src="assets/site.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="返回首页">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img">
+            <path d="M6 22.5 12.7 15l4.1 4.5 3-3.2L26 22.5H6Z" />
+            <circle cx="22.5" cy="9.5" r="3.5" />
+          </svg>
+        </span>
+        <span>必应壁纸</span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="#features">功能</a>
+        <a href="#gallery">壁纸</a>
+        <a href="https://github.com/hanhuang22/mybingwallpaper" target="_blank" rel="noreferrer">GitHub</a>
+      </nav>
+      <a
+        class="header-download"
+        data-release-link
+        href="https://github.com/hanhuang22/mybingwallpaper/releases/latest"
+      >下载应用</a>
+    </header>
+
+    <main id="top">
+      <section class="hero section-shell">
+        <div class="hero-copy">
+          <div class="eyebrow"><span></span> Windows 与 macOS</div>
+          <h1>每天一张好风景，<br /><em>让桌面自然焕新。</em></h1>
+          <p>
+            一款开源、轻量的桌面壁纸应用。浏览每日精选，回看历史风景，
+            也可以让它每天安静地自动更新。
+          </p>
+          <div class="hero-actions">
+            <a
+              class="button button-primary"
+              data-release-link
+              data-smart-download
+              href="https://github.com/hanhuang22/mybingwallpaper/releases/latest"
+            >下载最新版</a>
+            <a class="button button-secondary" href="#gallery">浏览壁纸</a>
+          </div>
+          <div class="release-note">
+            <span data-release-version>最新版</span>
+            <span aria-hidden="true">·</span>
+            <span>免费开源</span>
+            <span aria-hidden="true">·</span>
+            <span>无需账号</span>
+          </div>
+        </div>
+
+        <div class="hero-visual" aria-label="必应壁纸应用界面预览">
+          <div class="visual-glow"></div>
+          <div class="window-frame">
+            <div class="window-bar">
+              <div class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+              <span>必应壁纸</span>
+            </div>
+            <img
+              src="https://raw.githubusercontent.com/hanhuang22/mybingwallpaper/main/docs/screenshots/main.png"
+              alt="必应壁纸应用主界面"
+            />
+          </div>
+          <div class="floating-card floating-card-top">
+            <span class="status-dot"></span>
+            <div><strong>每日自动更新</strong><small>每天打开都是新风景</small></div>
+          </div>
+          <div class="floating-card floating-card-bottom">
+            <span class="calendar-icon" aria-hidden="true">21</span>
+            <div><strong>历史随时回看</strong><small>从 2010 年至今</small></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="features section-shell" id="features">
+        <article>
+          <span class="feature-number">01</span>
+          <h2>每日更新</h2>
+          <p>自动获取当天精选壁纸，也可开启登录启动，让更新自然发生。</p>
+        </article>
+        <article>
+          <span class="feature-number">02</span>
+          <h2>历史浏览</h2>
+          <p>用中文日期选择器回到任意一天，或随机发现一张错过的风景。</p>
+        </article>
+        <article>
+          <span class="feature-number">03</span>
+          <h2>原图品质</h2>
+          <p>预览并下载原始分辨率图片，在 Windows 与 macOS 上一键设置。</p>
+        </article>
+      </section>
+
+      <section class="gallery-section" id="gallery">
+        <div class="section-shell">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker">WALLPAPER ARCHIVE</span>
+              <h2>把时间翻成一本风景画册</h2>
+              <p>选择年月浏览历史壁纸，点击任意图片即可查看原图。</p>
+            </div>
+            <div class="date-controls" aria-label="选择壁纸年月">
+              <label>
+                <span>年份</span>
+                <select id="year-select" aria-label="选择年份"></select>
+              </label>
+              <label>
+                <span>月份</span>
+                <select id="month-select" aria-label="选择月份"></select>
+              </label>
+            </div>
+          </div>
+
+          <div class="gallery-status" id="gallery-status" role="status">正在载入壁纸…</div>
+          <div class="wallpaper-grid" id="wallpaper-grid" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="download-section section-shell">
+        <div class="download-card">
+          <div>
+            <span class="section-kicker">DESKTOP APP</span>
+            <h2>下一张好风景，交给它。</h2>
+            <p>下载适用于 Windows 与 macOS 的桌面应用，所有核心代码均已开源。</p>
+          </div>
+          <div class="download-actions">
+            <a
+              class="button button-light"
+              data-release-link
+              data-smart-download
+              href="https://github.com/hanhuang22/mybingwallpaper/releases/latest"
+            >下载最新版</a>
+            <a
+              class="button button-ghost"
+              href="https://github.com/hanhuang22/mybingwallpaper"
+              target="_blank"
+              rel="noreferrer"
+            >查看源代码</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="section-shell">
+      <div class="brand footer-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M6 22.5 12.7 15l4.1 4.5 3-3.2L26 22.5H6Z" /><circle cx="22.5" cy="9.5" r="3.5" /></svg>
+        </span>
+        <span>必应壁纸</span>
+      </div>
+      <p>开源的第三方壁纸工具，非 Microsoft 或 Bing 官方产品。</p>
+      <p>© <span id="current-year"></span> My Bing Wallpaper</p>
+    </footer>
+  </body>
+</html>
