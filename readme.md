@@ -1,8 +1,6 @@
 # 必应壁纸 · My Bing Wallpaper
 
-每天从必应壁纸档案中挑选、预览和应用桌面壁纸。新版使用 Tauri 2、React、TypeScript 与 Rust，支持 Windows 和 macOS。
-
-> 当前现代化版本位于 `codex/tauri-migration` 分支。原 Qt 6 源码暂时保留在仓库根目录，用于功能对照和回退；完成双平台验证后再替换主分支。
+每天从必应壁纸档案中挑选、预览和应用桌面壁纸。应用使用 Tauri 2、React、TypeScript 与 Rust，支持 Windows 和 macOS。
 
 ## 新版功能
 
@@ -111,6 +109,6 @@ GitHub Actions 会构建 Windows x64、x86、ARM64，以及 macOS Intel 和 Appl
 - 2010/01/01—2018/12/30 的历史图片数据来自 [bing.ee123.net](https://bing.ee123.net/)。
 - 之后的数据来自必应图片源；有 4K 原图时优先使用 4K 地址。
 
-## 旧版 Qt 功能说明
+## 数据维护与 OSS
 
-旧版基于 Qt 6 Widgets，仅支持 Windows，包含托盘、每日更新、锁屏壁纸和注册表开机启动。它使用同步事件循环等待网络请求，并且界面固定为 700×300；这些实现仅作为迁移期间的行为参考，不会进入新版架构。
+`.github/workflows/main.yml` 中的定时任务每天检出 `wallpaperarchiv` 分支，运行数据采集脚本，生成月度 JSON 并上传到阿里云 OSS。上传凭据只通过 GitHub Actions Secrets 注入，不进入桌面客户端、源码或安装包。
