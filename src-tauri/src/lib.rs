@@ -205,17 +205,22 @@ fn save_settings<R: Runtime>(
     settings: Settings,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    write_settings(&state.config_path, &settings)?;
     let autostart = app.autolaunch();
-    if settings.auto_start {
-        autostart
-            .enable()
-            .map_err(|error| format!("无法启用开机启动：{error}"))?;
-    } else {
-        autostart
-            .disable()
-            .map_err(|error| format!("无法关闭开机启动：{error}"))?;
+    let autostart_enabled = autostart
+        .is_enabled()
+        .map_err(|error| format!("无法读取开机启动状态：{error}"))?;
+    if settings.auto_start != autostart_enabled {
+        if settings.auto_start {
+            autostart
+                .enable()
+                .map_err(|error| format!("无法启用开机启动：{error}"))?;
+        } else {
+            autostart
+                .disable()
+                .map_err(|error| format!("无法关闭开机启动：{error}"))?;
+        }
     }
+    write_settings(&state.config_path, &settings)?;
     if settings.auto_update {
         let handle = app.clone();
         tauri::async_runtime::spawn(async move {
