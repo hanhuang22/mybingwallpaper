@@ -1,8 +1,26 @@
 # 必应壁纸 · My Bing Wallpaper
 
+[![Desktop build](https://github.com/hanhuang22/mybingwallpaper/actions/workflows/desktop-build.yml/badge.svg?branch=main)](https://github.com/hanhuang22/mybingwallpaper/actions/workflows/desktop-build.yml)
+[![Release](https://github.com/hanhuang22/mybingwallpaper/actions/workflows/release.yml/badge.svg)](https://github.com/hanhuang22/mybingwallpaper/actions/workflows/release.yml)
+
 每天从必应壁纸档案中挑选、预览和应用桌面壁纸。应用使用 Tauri 2、React、TypeScript 与 Rust，支持 Windows 和 macOS。
 
-## 新版功能
+## 界面预览
+
+![主界面](docs/screenshots/main.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/calendar.png" alt="中文日期选择器"></td>
+    <td width="50%"><img src="docs/screenshots/settings.png" alt="自动更新与开机启动设置"></td>
+  </tr>
+  <tr>
+    <td align="center">中文日期选择与历史壁纸浏览</td>
+    <td align="center">自动更新与登录启动设置</td>
+  </tr>
+</table>
+
+## 功能
 
 - 当日、历史日期和随机壁纸浏览
 - 原始分辨率图片下载与本地缓存
@@ -13,6 +31,15 @@
 - 可缩放现代界面与高 DPI 适配
 
 macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁屏开关。Windows 锁屏功能受系统版本、策略和权限影响，失败时不会影响桌面壁纸设置。
+
+## 下载
+
+安装包通过 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 发布：
+
+- Windows：x64、x86 与 ARM64，提供 MSI 和 NSIS 安装包。
+- macOS：Apple Silicon 与 Intel，提供 DMG。
+
+向 `main` 推送代码时，GitHub Actions 会验证上述五种目标能否构建；推送 `v*` 版本标签时，才会创建或更新对应的 GitHub Release 并上传安装包。当前安装包尚未配置商业代码签名，Windows 可能显示 SmartScreen 提示，macOS 可能显示 Gatekeeper 提示。
 
 ## 技术结构
 
