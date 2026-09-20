@@ -265,10 +265,12 @@ function App() {
                 <span><strong>登录后自动启动</strong><small>静默启动并驻留系统托盘</small></span>
                 <input type="checkbox" role="switch" checked={settings.autoStart} disabled={!isTauri()} onChange={(event) => void updateSettings({ autoStart: event.target.checked })} />
               </label>
-              <label className={`setting-row ${platform !== "windows" ? "disabled" : ""}`}>
-                <span><strong>同时更新锁屏</strong><small>{platform === "windows" ? "Windows 实验功能，可能需要额外系统权限" : "macOS 没有公开的锁屏壁纸接口"}</small></span>
-                <input type="checkbox" role="switch" checked={settings.lockScreen} disabled={platform !== "windows"} onChange={(event) => void updateSettings({ lockScreen: event.target.checked })} />
-              </label>
+              {platform === "windows" && (
+                <label className="setting-row">
+                  <span><strong>同时更新锁屏</strong><small>Windows 实验功能，可能需要额外系统权限</small></span>
+                  <input type="checkbox" role="switch" checked={settings.lockScreen} onChange={(event) => void updateSettings({ lockScreen: event.target.checked })} />
+                </label>
+              )}
             </div>
             <p className="settings-note">关闭主窗口后应用仍会驻留托盘。请通过托盘菜单完全退出。</p>
           </aside>

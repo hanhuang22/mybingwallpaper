@@ -330,6 +330,15 @@ pub fn run() {
             });
             build_tray(app)?;
 
+            let launched_in_background =
+                std::env::args().any(|argument| argument == "--background");
+            if !launched_in_background {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.show()?;
+                    window.set_focus()?;
+                }
+            }
+
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
