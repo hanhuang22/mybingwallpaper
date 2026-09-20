@@ -13,7 +13,7 @@ import {
   Shuffle,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DatePicker } from "./components/DatePicker";
 import {
   addDays,
@@ -22,6 +22,7 @@ import {
   formatDateKey,
   parseTitle,
   randomDate,
+  syncDateNavigation,
   type Settings,
   type Wallpaper,
 } from "./lib/wallpaper";
@@ -47,8 +48,10 @@ async function getWallpaper(date: string): Promise<Wallpaper> {
 }
 
 function App() {
-  const today = useMemo(() => formatDateKey(new Date()), []);
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [{ today, selectedDate }, setDateNavigation] = useState(() => {
+    const currentDate = formatDateKey(new Date());
+    return { today: currentDate, selectedDate: currentDate };
+  });
   const [wallpaper, setWallpaper] = useState<Wallpaper | null>(null);
   const [action, setAction] = useState<Action>("loading");
   const [message, setMessage] = useState("正在载入今日壁纸…");
@@ -56,27 +59,77 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">("browser");
+  const wallpaperRequest = useRef(0);
+
+  const setSelectedDate = useCallback((date: string) => {
+    setDateNavigation((current) => ({ ...current, selectedDate: date }));
+  }, []);
+
+  const syncToday = useCallback((date = formatDateKey(new Date())) => {
+    setDateNavigation((current) => syncDateNavigation(current, date));
+  }, []);
 
   const loadWallpaper = useCallback(async (date: string) => {
+    const request = wallpaperRequest.current + 1;
+    wallpaperRequest.current = request;
     setAction("loading");
     setError("");
     setMessage("正在载入壁纸…");
     try {
       const next = await getWallpaper(date);
-      setWallpaper(next);
-      setMessage("");
+      if (request === wallpaperRequest.current) {
+        setWallpaper(next);
+        setMessage("");
+      }
       return next;
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (request === wallpaperRequest.current) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+      }
       return null;
     } finally {
-      setAction(null);
+      if (request === wallpaperRequest.current) setAction(null);
     }
   }, []);
 
   useEffect(() => {
     void loadWallpaper(selectedDate);
   }, [loadWallpaper, selectedDate]);
+
+  useEffect(() => {
+    let midnightTimer = 0;
+
+    const scheduleMidnightRefresh = () => {
+      const now = new Date();
+      syncToday(formatDateKey(now));
+      const nextMidnight = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        0,
+        0,
+        1,
+      );
+      midnightTimer = window.setTimeout(
+        scheduleMidnightRefresh,
+        Math.max(1_000, nextMidnight.getTime() - now.getTime()),
+      );
+    };
+
+    const refreshAfterResume = () => syncToday();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") syncToday();
+    };
+
+    scheduleMidnightRefresh();
+    window.addEventListener("focus", refreshAfterResume);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearTimeout(midnightTimer);
+      window.removeEventListener("focus", refreshAfterResume);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [syncToday]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -89,23 +142,38 @@ function App() {
       setPlatform(currentPlatform);
     });
 
-    let stopListening: (() => void) | undefined;
-    void listen("tray-apply-today", () => {
-      setSelectedDate(today);
-      void getWallpaper(today).then((record) => {
-        setWallpaper(record);
-        return invoke("apply_wallpaper", {
-          imageUrl: record.imageUrl,
-          date: today,
-          setLockScreen: false,
+    let disposed = false;
+    const stopListening: Array<() => void> = [];
+    void Promise.all([
+      listen("tray-apply-today", () => {
+        const currentDate = formatDateKey(new Date());
+        syncToday(currentDate);
+        setSelectedDate(currentDate);
+        void getWallpaper(currentDate).then((record) => {
+          setWallpaper(record);
+          return invoke("apply_wallpaper", {
+            imageUrl: record.imageUrl,
+            date: currentDate,
+            setLockScreen: false,
+          });
         });
-      });
-    }).then((unlisten) => {
-      stopListening = unlisten;
+      }),
+      listen<string>("auto-update-complete", (event) => {
+        syncToday(event.payload);
+      }),
+    ]).then((unlisteners) => {
+      if (disposed) {
+        unlisteners.forEach((unlisten) => unlisten());
+      } else {
+        stopListening.push(...unlisteners);
+      }
     });
 
-    return () => stopListening?.();
-  }, [today]);
+    return () => {
+      disposed = true;
+      stopListening.forEach((unlisten) => unlisten());
+    };
+  }, [setSelectedDate, syncToday]);
 
   const updateSettings = async (patch: Partial<Settings>) => {
     const next = { ...settings, ...patch };

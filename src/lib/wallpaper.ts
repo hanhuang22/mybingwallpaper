@@ -18,6 +18,11 @@ export interface Settings {
   lockScreen: boolean;
 }
 
+export interface DateNavigationState {
+  today: string;
+  selectedDate: string;
+}
+
 export const defaultSettings: Settings = {
   autoUpdate: false,
   autoStart: false,
@@ -47,6 +52,20 @@ export function addDays(value: string, amount: number): string {
   const date = new Date(`${value}T12:00:00`);
   date.setDate(date.getDate() + amount);
   return formatDateKey(date);
+}
+
+export function syncDateNavigation(
+  state: DateNavigationState,
+  nextToday: string,
+): DateNavigationState {
+  if (state.today === nextToday) return state;
+  return {
+    today: nextToday,
+    selectedDate:
+      state.selectedDate === state.today || state.selectedDate > nextToday
+        ? nextToday
+        : state.selectedDate,
+  };
 }
 
 export function randomDate(minimum = "2010-01-01", maximum = formatDateKey(new Date())): string {

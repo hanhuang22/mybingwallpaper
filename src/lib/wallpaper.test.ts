@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { addDays, dateToApiKey, parseTitle, randomDate } from "./wallpaper";
+import {
+  addDays,
+  dateToApiKey,
+  parseTitle,
+  randomDate,
+  syncDateNavigation,
+} from "./wallpaper";
 
 describe("wallpaper helpers", () => {
   it("converts a UI date to the archive key", () => {
@@ -22,5 +28,25 @@ describe("wallpaper helpers", () => {
       const value = randomDate("2026-01-01", "2026-01-03");
       expect(value >= "2026-01-01" && value <= "2026-01-03").toBe(true);
     }
+  });
+
+  it("advances the selected date when the app crosses midnight on today", () => {
+    expect(syncDateNavigation({
+      today: "2026-09-20",
+      selectedDate: "2026-09-20",
+    }, "2026-09-21")).toEqual({
+      today: "2026-09-21",
+      selectedDate: "2026-09-21",
+    });
+  });
+
+  it("keeps a historical selection while extending the date range", () => {
+    expect(syncDateNavigation({
+      today: "2026-09-20",
+      selectedDate: "2026-09-18",
+    }, "2026-09-21")).toEqual({
+      today: "2026-09-21",
+      selectedDate: "2026-09-18",
+    });
   });
 });
