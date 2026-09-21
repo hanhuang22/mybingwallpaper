@@ -26,6 +26,7 @@ struct AppState {
     wallpaper_cache: PathBuf,
     active_wallpaper: Arc<Mutex<Option<PathBuf>>>,
     last_auto_update: Arc<Mutex<Option<String>>>,
+    auto_update_lock: Arc<tokio::sync::Mutex<()>>,
     quitting: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -156,6 +157,14 @@ fn write_settings(path: &Path, settings: &Settings) -> Result<(), String> {
     let contents =
         serde_json::to_vec_pretty(settings).map_err(|error| format!("配置序列化失败：{error}"))?;
     fs::write(path, contents).map_err(|error| format!("配置保存失败：{error}"))
+}
+
+fn should_reapply_cached_wallpaper(
+    last_auto_update: Option<&str>,
+    today: &str,
+    cached_file_exists: bool,
+) -> bool {
+    last_auto_update == Some(today) && cached_file_exists
 }
 
 fn latest_cached_wallpaper(cache: &Path) -> Option<PathBuf> {
@@ -314,31 +323,50 @@ fn get_platform() -> &'static str {
 }
 
 async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    let (client, cache, config, guard) = {
+    let (client, cache, config, guard, update_lock) = {
         let state = app.state::<AppState>();
         (
             state.client.clone(),
             state.wallpaper_cache.clone(),
             state.config_path.clone(),
             state.last_auto_update.clone(),
+            state.auto_update_lock.clone(),
         )
     };
-    if !read_settings(&config).auto_update {
+    let _update_guard = update_lock.lock().await;
+    let settings = read_settings(&config);
+    if !settings.auto_update {
         return Ok(());
     }
     let today = Local::now().format("%Y-%m-%d").to_string();
-    if guard
+    let path = cache.join(format!("{today}.jpg"));
+    let already_updated_today = guard
         .lock()
         .map_err(|_| "更新状态不可用".to_string())?
         .as_deref()
-        == Some(&today)
-    {
+        == Some(&today);
+    if should_reapply_cached_wallpaper(
+        already_updated_today.then_some(today.as_str()),
+        &today,
+        path.is_file(),
+    ) {
+        platform::set_desktop_wallpaper(&path)?;
+        if cfg!(target_os = "windows") && settings.lock_screen {
+            platform::set_lock_screen_wallpaper(&path)?;
+        }
+        {
+            let state = app.state::<AppState>();
+            remember_active_wallpaper(&state, &path)?;
+        }
+        let _ = app.emit("auto-update-complete", &today);
         return Ok(());
     }
     let wallpaper = fetch_wallpaper(&client, &today).await?;
-    let path = cache.join(format!("{today}.jpg"));
     download_image(&client, &wallpaper.image_url, &path).await?;
     platform::set_desktop_wallpaper(&path)?;
+    if cfg!(target_os = "windows") && settings.lock_screen {
+        platform::set_lock_screen_wallpaper(&path)?;
+    }
     {
         let state = app.state::<AppState>();
         remember_active_wallpaper(&state, &path)?;
@@ -346,6 +374,11 @@ async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()
     *guard.lock().map_err(|_| "更新状态不可用".to_string())? = Some(today.clone());
     let _ = app.emit("auto-update-complete", &today);
     Ok(())
+}
+
+#[tauri::command]
+async fn run_auto_update<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    run_auto_update_once(app).await
 }
 
 fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
@@ -410,6 +443,7 @@ pub fn run() {
                 active_wallpaper: Arc::new(Mutex::new(latest_cached_wallpaper(&cache_dir))),
                 wallpaper_cache: cache_dir,
                 last_auto_update: Arc::new(Mutex::new(None)),
+                auto_update_lock: Arc::new(tokio::sync::Mutex::new(())),
                 quitting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             });
             build_tray(app)?;
@@ -456,8 +490,37 @@ pub fn run() {
             save_wallpaper,
             load_settings,
             save_settings,
+            run_auto_update,
             get_platform
         ])
         .run(tauri::generate_context!())
         .expect("error while running My Bing Wallpaper");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_reapply_cached_wallpaper;
+
+    #[test]
+    fn reuses_todays_cached_wallpaper_for_a_refresh() {
+        assert!(should_reapply_cached_wallpaper(
+            Some("2026-09-22"),
+            "2026-09-22",
+            true,
+        ));
+    }
+
+    #[test]
+    fn downloads_when_the_date_changed_or_the_cache_is_missing() {
+        assert!(!should_reapply_cached_wallpaper(
+            Some("2026-09-21"),
+            "2026-09-22",
+            true,
+        ));
+        assert!(!should_reapply_cached_wallpaper(
+            Some("2026-09-22"),
+            "2026-09-22",
+            false,
+        ));
+    }
 }

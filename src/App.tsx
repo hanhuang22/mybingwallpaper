@@ -99,9 +99,21 @@ function App() {
   useEffect(() => {
     let midnightTimer = 0;
 
+    const refreshWallpaper = () => {
+      if (!isTauri()) return;
+      void invoke("run_auto_update").catch((reason) => {
+        setError(`自动更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      });
+    };
+
+    const refreshDateAndWallpaper = () => {
+      syncToday();
+      refreshWallpaper();
+    };
+
     const scheduleMidnightRefresh = () => {
       const now = new Date();
-      syncToday(formatDateKey(now));
+      refreshDateAndWallpaper();
       const nextMidnight = new Date(
         now.getFullYear(),
         now.getMonth(),
@@ -116,9 +128,9 @@ function App() {
       );
     };
 
-    const refreshAfterResume = () => syncToday();
+    const refreshAfterResume = () => refreshDateAndWallpaper();
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") syncToday();
+      if (document.visibilityState === "visible") refreshDateAndWallpaper();
     };
 
     scheduleMidnightRefresh();
@@ -160,6 +172,9 @@ function App() {
       }),
       listen<string>("auto-update-complete", (event) => {
         syncToday(event.payload);
+      }),
+      listen<string>("auto-update-error", (event) => {
+        setError(`自动更新失败：${event.payload}`);
       }),
       listen<string>("display-wallpaper-error", (event) => {
         setError(`外接显示器壁纸同步失败：${event.payload}`);
