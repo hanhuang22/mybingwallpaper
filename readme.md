@@ -47,7 +47,7 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 | `mybingwallpaper-v<版本>-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
 | `mybingwallpaper-v<版本>-macos-intel.dmg` | Intel Mac |
 
-向 `main` 推送代码时，GitHub Actions 会验证上述五种目标能否构建；推送 `v*` 版本标签时，才会创建或更新对应的 GitHub Release 并上传安装包。当前安装包尚未配置商业代码签名，Windows 可能显示 SmartScreen 提示，macOS 可能显示 Gatekeeper 提示。
+向 `main` 推送代码时，GitHub Actions 会验证上述五种目标能否构建；推送 `v*` 版本标签时，才会创建或更新对应的 GitHub Release 并上传安装包。当前安装包尚未配置商业代码签名，Windows 可能显示 SmartScreen 提示。macOS 安装包使用完整的 ad-hoc 应用签名保证包内文件完整，但尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
 
 ## 技术结构
 
@@ -134,7 +134,7 @@ src-tauri/target/<target>/release/bundle/nsis/*-setup.exe
 npm run tauri build
 ```
 
-macOS 会生成 `.app` 和 DMG；正式分发前需要 Apple 签名与公证。
+macOS 会生成 `.app` 和带有拖动安装界面的 DMG。本项目默认执行完整的 ad-hoc 应用签名，避免下载后的应用包因签名结构不完整而被判断为损坏；若要让安装包无需用户手动放行，仍需 Apple Developer ID 签名与公证。
 
 GitHub Actions 会构建 Windows x64、x86、ARM64，以及 macOS Intel 和 Apple Silicon。推送 `v*` 标签时，发布工作流会将三个 Windows 架构的 MSI/NSIS 安装包，以及两个 macOS 架构的 DMG 附加到对应 GitHub Release。
 

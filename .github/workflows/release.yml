@@ -120,4 +120,4 @@ jobs:
             | `mybingwallpaper-${{ github.ref_name }}-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
             | `mybingwallpaper-${{ github.ref_name }}-macos-intel.dmg` | Intel Mac |
 
-            当前安装包未进行商业代码签名。Windows 可能显示 SmartScreen 提示，macOS 可能显示 Gatekeeper 提示。
+            当前安装包未进行商业代码签名。Windows 可能显示 SmartScreen 提示。macOS 安装包已进行完整的 ad-hoc 应用签名，但未经 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。

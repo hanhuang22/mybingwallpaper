@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="400" viewBox="0 0 660 400">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8f5ed"/>
+      <stop offset="1" stop-color="#edf1e7"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ddecaf" stop-opacity=".8"/>
+      <stop offset="1" stop-color="#ddecaf" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#183d31" flood-opacity=".12"/>
+    </filter>
+  </defs>
+
+  <rect width="660" height="400" fill="url(#background)"/>
+  <circle cx="570" cy="34" r="150" fill="url(#glow)"/>
+  <circle cx="65" cy="390" r="135" fill="url(#glow)" opacity=".52"/>
+
+  <g transform="translate(246 28)">
+    <rect width="32" height="32" rx="10" fill="#173e31"/>
+    <path d="M7 23 13.7 15.5l4 4.3 3-3.1 5.3 6.3H7Z" fill="#dff0a8"/>
+    <circle cx="22.5" cy="9.5" r="3.2" fill="#dff0a8"/>
+    <text x="44" y="22" fill="#17211b" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="18" font-weight="700">必应壁纸</text>
+  </g>
+
+  <text x="330" y="91" text-anchor="middle" fill="#526158" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="13" font-weight="500">将应用拖入 Applications 文件夹即可完成安装</text>
+
+  <g fill="none" stroke="#245c47" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M263 181h126" stroke-width="3" stroke-dasharray="3 9" opacity=".42"/>
+    <path d="m377 169 14 12-14 12" stroke-width="4"/>
+  </g>
+  <circle cx="257" cy="181" r="4" fill="#245c47" opacity=".35"/>
+
+  <g filter="url(#shadow)">
+    <rect x="105" y="304" width="450" height="58" rx="18" fill="#ffffff" fill-opacity=".78"/>
+  </g>
+  <text x="330" y="329" text-anchor="middle" fill="#17211b" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="13" font-weight="650">拖动完成后，即可从“应用程序”启动</text>
+  <text x="330" y="348" text-anchor="middle" fill="#788179" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="10">支持 macOS 12 及更高版本</text>
+
+  <path d="M0 399.5h660" stroke="#173e31" stroke-opacity=".08"/>
+</svg>
