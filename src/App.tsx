@@ -161,6 +161,9 @@ function App() {
       listen<string>("auto-update-complete", (event) => {
         syncToday(event.payload);
       }),
+      listen<string>("display-wallpaper-error", (event) => {
+        setError(`外接显示器壁纸同步失败：${event.payload}`);
+      }),
     ]).then((unlisteners) => {
       if (disposed) {
         unlisteners.forEach((unlisten) => unlisten());

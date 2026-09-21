@@ -7,7 +7,7 @@ mod macos;
 mod windows;
 
 #[cfg(target_os = "macos")]
-pub use macos::{set_desktop_wallpaper, set_lock_screen_wallpaper};
+pub use macos::{connected_display_ids, set_desktop_wallpaper, set_lock_screen_wallpaper};
 #[cfg(target_os = "windows")]
 pub use windows::{set_desktop_wallpaper, set_lock_screen_wallpaper};
 

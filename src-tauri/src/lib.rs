@@ -24,6 +24,7 @@ struct AppState {
     client: Client,
     config_path: PathBuf,
     wallpaper_cache: PathBuf,
+    active_wallpaper: Arc<Mutex<Option<PathBuf>>>,
     last_auto_update: Arc<Mutex<Option<String>>>,
     quitting: Arc<std::sync::atomic::AtomicBool>,
 }
@@ -157,6 +158,78 @@ fn write_settings(path: &Path, settings: &Settings) -> Result<(), String> {
     fs::write(path, contents).map_err(|error| format!("配置保存失败：{error}"))
 }
 
+fn latest_cached_wallpaper(cache: &Path) -> Option<PathBuf> {
+    fs::read_dir(cache)
+        .ok()?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let is_jpeg = path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("jpg"));
+            if !is_jpeg {
+                return None;
+            }
+            let modified = entry.metadata().ok()?.modified().ok()?;
+            Some((modified, path))
+        })
+        .max_by_key(|(modified, _)| *modified)
+        .map(|(_, path)| path)
+}
+
+fn remember_active_wallpaper(state: &AppState, path: &Path) -> Result<(), String> {
+    *state
+        .active_wallpaper
+        .lock()
+        .map_err(|_| "壁纸状态不可用".to_string())? = Some(path.to_path_buf());
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn reapply_active_wallpaper<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
+    let path = app
+        .state::<AppState>()
+        .active_wallpaper
+        .lock()
+        .map_err(|_| "壁纸状态不可用".to_string())?
+        .clone();
+    let Some(path) = path.filter(|path| path.is_file()) else {
+        return Ok(());
+    };
+    platform::set_desktop_wallpaper(&path)
+}
+
+#[cfg(target_os = "macos")]
+fn watch_display_reconnections<R: Runtime>(app: tauri::AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        let mut previous = platform::connected_display_ids().unwrap_or_default();
+        loop {
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            let Ok(current) = platform::connected_display_ids() else {
+                continue;
+            };
+            if current == previous {
+                continue;
+            }
+            let display_connected = current
+                .iter()
+                .any(|display_id| !previous.contains(display_id));
+            previous = current;
+            if !display_connected {
+                continue;
+            }
+
+            // Give macOS time to finish creating the desktop space for a newly
+            // connected display before applying the current wallpaper to it.
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            if let Err(error) = reapply_active_wallpaper(&app) {
+                let _ = app.emit("display-wallpaper-error", error);
+            }
+        }
+    });
+}
+
 #[tauri::command]
 async fn get_wallpaper(date: String, state: State<'_, AppState>) -> Result<Wallpaper, String> {
     fetch_wallpaper(&state.client, &date).await
@@ -173,6 +246,7 @@ async fn apply_wallpaper(
     let path = state.wallpaper_cache.join(format!("{date}.jpg"));
     download_image(&state.client, &image_url, &path).await?;
     platform::set_desktop_wallpaper(&path)?;
+    remember_active_wallpaper(&state, &path)?;
     if set_lock_screen {
         platform::set_lock_screen_wallpaper(&path)?;
     }
@@ -265,6 +339,10 @@ async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()
     let path = cache.join(format!("{today}.jpg"));
     download_image(&client, &wallpaper.image_url, &path).await?;
     platform::set_desktop_wallpaper(&path)?;
+    {
+        let state = app.state::<AppState>();
+        remember_active_wallpaper(&state, &path)?;
+    }
     *guard.lock().map_err(|_| "更新状态不可用".to_string())? = Some(today.clone());
     let _ = app.emit("auto-update-complete", &today);
     Ok(())
@@ -329,6 +407,7 @@ pub fn run() {
             app.manage(AppState {
                 client,
                 config_path: config_dir.join("settings.json"),
+                active_wallpaper: Arc::new(Mutex::new(latest_cached_wallpaper(&cache_dir))),
                 wallpaper_cache: cache_dir,
                 last_auto_update: Arc::new(Mutex::new(None)),
                 quitting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -345,6 +424,8 @@ pub fn run() {
             }
 
             let handle = app.handle().clone();
+            #[cfg(target_os = "macos")]
+            watch_display_reconnections(handle.clone());
             tauri::async_runtime::spawn(async move {
                 loop {
                     tokio::time::sleep(Duration::from_secs(15)).await;
