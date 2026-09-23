@@ -1,5 +1,6 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { buildUpdaterManifest } from "./updater-manifest.mjs";
 
 const required = (name) => {
   const value = process.env[name];
@@ -66,6 +67,7 @@ async function githubReleaseBody() {
 const assets = (await readdir(assetDir, { withFileTypes: true }))
   .filter((entry) => entry.isFile())
   .map((entry) => join(assetDir, entry.name))
+  .filter((asset) => basename(asset) !== "latest.json")
   .sort();
 
 if (assets.length === 0) throw new Error(`No release assets found in ${assetDir}`);
@@ -96,7 +98,7 @@ if (release) {
   console.log(`Created Gitee release ${tag}`);
 }
 
-const localNames = new Set(assets.map((asset) => basename(asset)));
+const localNames = new Set([...assets.map((asset) => basename(asset)), "latest.json"]);
 const existing =
   (await giteeRequest(`/releases/${release.id}/attach_files?per_page=100`)) ?? [];
 for (const attachment of existing) {
@@ -108,15 +110,78 @@ for (const attachment of existing) {
   console.log(`Replaced existing attachment ${attachment.name}`);
 }
 
+const downloadUrls = new Map();
 for (const asset of assets) {
   const fileName = basename(asset);
   const form = new FormData();
   form.set("file", new Blob([await readFile(asset)]), fileName);
-  await giteeRequest(`/releases/${release.id}/attach_files`, {
+  const attachment = await giteeRequest(`/releases/${release.id}/attach_files`, {
     method: "POST",
     body: form,
   });
+  if (!attachment?.browser_download_url) {
+    throw new Error(`Gitee did not return a public download URL for ${fileName}`);
+  }
+  downloadUrls.set(fileName, attachment.browser_download_url);
   console.log(`Uploaded ${fileName}`);
 }
 
-console.log(`Published ${assets.length} installers to Gitee release ${tag}`);
+const updaterManifest = await buildUpdaterManifest({
+  assetDir,
+  tag,
+  urlForAsset: (fileName) => {
+    const url = downloadUrls.get(fileName);
+    if (!url) throw new Error(`Missing Gitee download URL for ${fileName}`);
+    return url;
+  },
+});
+const updaterManifestPath = join(assetDir, "latest.json");
+const updaterManifestContents = `${JSON.stringify(updaterManifest, null, 2)}\n`;
+await writeFile(updaterManifestPath, updaterManifestContents);
+const manifestForm = new FormData();
+manifestForm.set("file", new Blob([updaterManifestContents]), "latest.json");
+await giteeRequest(`/releases/${release.id}/attach_files`, {
+  method: "POST",
+  body: manifestForm,
+});
+console.log("Uploaded Gitee updater manifest");
+
+async function publishUpdaterBranch() {
+  const githubToken = required("GITHUB_TOKEN");
+  const githubApi = "https://api.github.com/repos/hanhuang22/mybingwallpaper";
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${githubToken}`,
+    "Content-Type": "application/json",
+    "User-Agent": "mybingwallpaper-release-sync",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  const request = async (path, options = {}) => {
+    const response = await fetch(`${githubApi}${path}`, { ...options, headers });
+    if (options.allowNotFound && response.status === 404) return null;
+    if (!response.ok) throw new Error(`GitHub API ${path} failed (${response.status})`);
+    return response.json();
+  };
+
+  let branch = await request("/git/ref/heads/updater", { allowNotFound: true });
+  if (!branch) {
+    branch = await request("/git/refs", {
+      method: "POST",
+      body: JSON.stringify({ ref: "refs/heads/updater", sha: commit }),
+    });
+  }
+  const existing = await request("/contents/latest.json?ref=updater", { allowNotFound: true });
+  await request("/contents/latest.json", {
+    method: "PUT",
+    body: JSON.stringify({
+      message: `chore: update signed manifest for ${tag}`,
+      content: Buffer.from(updaterManifestContents).toString("base64"),
+      branch: "updater",
+      ...(existing?.sha ? { sha: existing.sha } : {}),
+    }),
+  });
+  console.log("Published Gitee-backed manifest to the updater branch");
+}
+
+await publishUpdaterBranch();
+console.log(`Published ${assets.length} signed assets to Gitee release ${tag}`);

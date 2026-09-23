@@ -14,11 +14,13 @@ import {
   ImageIcon,
   Info,
   LoaderCircle,
+  Moon,
   MonitorDown,
   PackageOpen,
   RefreshCw,
   Settings as SettingsIcon,
   Shuffle,
+  Sun,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -41,8 +43,7 @@ interface UpdateCheck {
   currentVersion: string;
   latestVersion: string;
   updateAvailable: boolean;
-  source: string;
-  releaseUrl: string;
+  readyToRestart: boolean;
 }
 
 const OFFICIAL_SITE = "https://hanhuang22.github.io/mybingwallpaper/";
@@ -82,6 +83,8 @@ function App() {
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">("browser");
   const [appVersion, setAppVersion] = useState("0.3.6");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [downloadingUpdate, setDownloadingUpdate] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateCheck | null>(null);
   const wallpaperRequest = useRef(0);
 
@@ -92,6 +95,20 @@ function App() {
   const syncToday = useCallback((date = formatDateKey(new Date())) => {
     setDateNavigation((current) => syncDateNavigation(current, date));
   }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const resolved = settings.theme === "system"
+        ? (media.matches ? "dark" : "light")
+        : settings.theme;
+      document.documentElement.dataset.theme = resolved;
+      document.documentElement.style.colorScheme = resolved;
+    };
+    applyTheme();
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [settings.theme]);
 
   const loadWallpaper = useCallback(async (date: string) => {
     const request = wallpaperRequest.current + 1;
@@ -207,6 +224,22 @@ function App() {
       listen<string>("display-wallpaper-error", (event) => {
         setError(`外接显示器壁纸同步失败：${event.payload}`);
       }),
+      listen<{ downloaded: number; total?: number }>("software-update-progress", (event) => {
+        if (event.payload.total) {
+          setUpdateProgress(Math.min(100, Math.round((event.payload.downloaded / event.payload.total) * 100)));
+        }
+      }),
+      listen<string>("software-update-ready", (event) => {
+        setDownloadingUpdate(false);
+        setUpdateProgress(100);
+        setUpdateInfo({
+          currentVersion: appVersion,
+          latestVersion: event.payload,
+          updateAvailable: true,
+          readyToRestart: true,
+        });
+        setMessage(`v${event.payload} 已准备好，重启即可完成更新`);
+      }),
     ]).then((unlisteners) => {
       if (disposed) {
         unlisteners.forEach((unlisten) => unlisten());
@@ -219,7 +252,7 @@ function App() {
       disposed = true;
       stopListening.forEach((unlisten) => unlisten());
     };
-  }, [setSelectedDate, syncToday]);
+  }, [appVersion, setSelectedDate, syncToday]);
 
   const updateSettings = async (patch: Partial<Settings>) => {
     const next = { ...settings, ...patch };
@@ -313,7 +346,7 @@ function App() {
     setUpdateInfo(null);
     setError("");
     try {
-      const result = await invoke<UpdateCheck>("check_for_updates");
+      const result = await invoke<UpdateCheck>("prepare_software_update", { download: false });
       setUpdateInfo(result);
       setMessage(
         result.updateAvailable
@@ -325,6 +358,33 @@ function App() {
       setError(`检查更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
     } finally {
       setCheckingUpdate(false);
+    }
+  };
+
+  const downloadSoftwareUpdate = async () => {
+    setDownloadingUpdate(true);
+    setUpdateProgress(null);
+    setError("");
+    try {
+      const result = await invoke<UpdateCheck>("prepare_software_update", { download: true });
+      setUpdateInfo(result);
+      if (result.readyToRestart) {
+        setMessage(`v${result.latestVersion} 已准备好，重启即可完成更新`);
+      }
+    } catch (reason) {
+      setError(`下载更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      setDownloadingUpdate(false);
+    }
+  };
+
+  const installSoftwareUpdate = async () => {
+    setError("");
+    setMessage("正在安装更新并重新启动…");
+    try {
+      await invoke("install_software_update");
+    } catch (reason) {
+      setError(`安装更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
 
@@ -447,6 +507,20 @@ function App() {
                   <input type="checkbox" role="switch" checked={settings.lockScreen} onChange={(event) => void updateSettings({ lockScreen: event.target.checked })} />
                 </label>
               )}
+              <div className="setting-row theme-setting-row">
+                <span><strong>外观</strong><small>默认跟随系统的浅色或深色模式</small></span>
+                <div className="theme-options" role="group" aria-label="外观主题">
+                  <button className={settings.theme === "system" ? "selected" : ""} type="button" title="跟随系统" onClick={() => void updateSettings({ theme: "system" })}>
+                    <MonitorDown size={15} /><span>系统</span>
+                  </button>
+                  <button className={settings.theme === "light" ? "selected" : ""} type="button" title="浅色" onClick={() => void updateSettings({ theme: "light" })}>
+                    <Sun size={15} /><span>浅色</span>
+                  </button>
+                  <button className={settings.theme === "dark" ? "selected" : ""} type="button" title="深色" onClick={() => void updateSettings({ theme: "dark" })}>
+                    <Moon size={15} /><span>深色</span>
+                  </button>
+                </div>
+              </div>
               <div className="setting-row setting-action-row">
                 <span><strong>本地壁纸</strong><small>查看自动下载和已经应用过的壁纸</small></span>
                 <button className="settings-action" type="button" onClick={openWallpaperFolder}>
@@ -458,12 +532,18 @@ function App() {
                   <strong>软件更新</strong>
                   <small>
                     当前版本 v{appVersion}
-                    {updateInfo && ` · ${updateInfo.source} 最新 v${updateInfo.latestVersion}`}
+                    {updateInfo?.updateAvailable && ` · 最新 v${updateInfo.latestVersion}`}
+                    {downloadingUpdate && ` · 下载中${updateProgress === null ? "…" : ` ${updateProgress}%`}`}
                   </small>
                 </span>
-                {updateInfo?.updateAvailable ? (
-                  <button className="settings-action accent" type="button" onClick={() => void openExternal(updateInfo.releaseUrl)}>
-                    <PackageOpen size={16} />前往下载
+                {updateInfo?.readyToRestart ? (
+                  <button className="settings-action accent" type="button" onClick={() => void installSoftwareUpdate()}>
+                    <RefreshCw size={16} />重启并更新
+                  </button>
+                ) : updateInfo?.updateAvailable ? (
+                  <button className="settings-action accent" type="button" disabled={downloadingUpdate} onClick={() => void downloadSoftwareUpdate()}>
+                    {downloadingUpdate ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}
+                    {downloadingUpdate ? "下载中" : "下载更新"}
                   </button>
                 ) : (
                   <button className="settings-action" type="button" disabled={checkingUpdate} onClick={() => void checkForUpdates()}>
@@ -472,6 +552,19 @@ function App() {
                   </button>
                 )}
               </div>
+              <label className="setting-row">
+                <span><strong>自动下载软件更新</strong><small>发现新版本后在后台下载，安装前仍会询问</small></span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={settings.autoDownloadUpdates}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    void updateSettings({ autoDownloadUpdates: enabled });
+                    if (enabled) void downloadSoftwareUpdate();
+                  }}
+                />
+              </label>
             </div>
             <div className="settings-links" aria-label="项目链接">
               <button type="button" onClick={() => void openExternal(OFFICIAL_SITE)}><Globe2 size={15} />官方网站<ExternalLink size={13} /></button>

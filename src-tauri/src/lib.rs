@@ -2,7 +2,6 @@ mod platform;
 
 use chrono::{Local, NaiveDate};
 use reqwest::Client;
-use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -18,14 +17,10 @@ use tauri::{
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 use url::Url;
 
 const ARCHIVE_BASE: &str = "https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month";
-const GITEE_LATEST_RELEASE: &str =
-    "https://gitee.com/api/v5/repos/Hyman25/mybingwallpaper/releases/latest";
-const GITHUB_LATEST_RELEASE: &str =
-    "https://api.github.com/repos/hanhuang22/mybingwallpaper/releases/latest";
-
 struct AppState {
     client: Client,
     config_path: PathBuf,
@@ -33,7 +28,15 @@ struct AppState {
     active_wallpaper: Arc<Mutex<Option<PathBuf>>>,
     last_auto_update: Arc<Mutex<Option<String>>>,
     auto_update_lock: Arc<tokio::sync::Mutex<()>>,
+    software_update_lock: Arc<tokio::sync::Mutex<()>>,
+    pending_software_update: Arc<tokio::sync::Mutex<Option<PendingSoftwareUpdate>>>,
     quitting: Arc<std::sync::atomic::AtomicBool>,
+}
+
+struct PendingSoftwareUpdate {
+    update: Update,
+    bytes: Vec<u8>,
+    version: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -54,19 +57,20 @@ struct RemoteWallpaper {
     imgurl: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct RemoteRelease {
-    tag_name: String,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct UpdateCheck {
+struct SoftwareUpdateStatus {
     current_version: String,
     latest_version: String,
     update_available: bool,
-    source: String,
-    release_url: String,
+    ready_to_restart: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SoftwareUpdateProgress {
+    downloaded: u64,
+    total: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +79,8 @@ struct Settings {
     auto_update: bool,
     auto_start: bool,
     lock_screen: bool,
+    auto_download_updates: bool,
+    theme: String,
 }
 
 impl Default for Settings {
@@ -83,6 +89,8 @@ impl Default for Settings {
             auto_update: false,
             auto_start: false,
             lock_screen: false,
+            auto_download_updates: true,
+            theme: "system".to_string(),
         }
     }
 }
@@ -107,11 +115,6 @@ fn image_url(url: &str) -> Result<Url, String> {
         return Err("壁纸来源不在允许列表中".to_string());
     }
     Ok(parsed)
-}
-
-fn parse_version(value: &str) -> Result<Version, String> {
-    Version::parse(value.trim().trim_start_matches(['v', 'V']))
-        .map_err(|_| format!("无法识别版本号：{value}"))
 }
 
 fn trusted_external_url(url: &str) -> Result<Url, String> {
@@ -319,83 +322,111 @@ fn get_app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+async fn prepare_software_update_inner<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    download: bool,
+) -> Result<SoftwareUpdateStatus, String> {
+    let (update_lock, pending_update) = {
+        let state = app.state::<AppState>();
+        (
+            state.software_update_lock.clone(),
+            state.pending_software_update.clone(),
+        )
+    };
+    let _guard = update_lock.lock().await;
+    let current_version = app.package_info().version.to_string();
+
+    if let Some(pending) = pending_update.lock().await.as_ref() {
+        return Ok(SoftwareUpdateStatus {
+            current_version,
+            latest_version: pending.version.clone(),
+            update_available: true,
+            ready_to_restart: true,
+        });
+    }
+
+    let updater = app
+        .updater_builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|error| format!("无法初始化更新服务：{error}"))?;
+    let Some(update) = updater
+        .check()
+        .await
+        .map_err(|error| format!("无法获取更新信息：{error}"))?
+    else {
+        return Ok(SoftwareUpdateStatus {
+            current_version: current_version.clone(),
+            latest_version: current_version,
+            update_available: false,
+            ready_to_restart: false,
+        });
+    };
+
+    let latest_version = update.version.clone();
+    if !download {
+        return Ok(SoftwareUpdateStatus {
+            current_version,
+            latest_version,
+            update_available: true,
+            ready_to_restart: false,
+        });
+    }
+
+    let progress_app = app.clone();
+    let mut downloaded = 0_u64;
+    let bytes = update
+        .download(
+            move |chunk, total| {
+                downloaded = downloaded.saturating_add(chunk as u64);
+                let _ = progress_app.emit(
+                    "software-update-progress",
+                    SoftwareUpdateProgress { downloaded, total },
+                );
+            },
+            || {},
+        )
+        .await
+        .map_err(|error| format!("更新下载或签名校验失败：{error}"))?;
+
+    *pending_update.lock().await = Some(PendingSoftwareUpdate {
+        update,
+        bytes,
+        version: latest_version.clone(),
+    });
+    let _ = app.emit("software-update-ready", &latest_version);
+    Ok(SoftwareUpdateStatus {
+        current_version,
+        latest_version,
+        update_available: true,
+        ready_to_restart: true,
+    })
+}
+
 #[tauri::command]
-async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheck, String> {
-    let sources = [
-        (
-            "Gitee",
-            GITEE_LATEST_RELEASE,
-            "https://gitee.com/Hyman25/mybingwallpaper/releases/tag/",
-        ),
-        (
-            "GitHub",
-            GITHUB_LATEST_RELEASE,
-            "https://github.com/hanhuang22/mybingwallpaper/releases/tag/",
-        ),
-    ];
-    let mut failures = Vec::new();
-    let current = parse_version(env!("CARGO_PKG_VERSION"))?;
-    let mut available_fallback: Option<UpdateCheck> = None;
+async fn prepare_software_update<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    download: bool,
+) -> Result<SoftwareUpdateStatus, String> {
+    prepare_software_update_inner(app, download).await
+}
 
-    for (source, endpoint, release_base) in sources {
-        let response = match state.client.get(endpoint).send().await {
-            Ok(response) => response,
-            Err(error) => {
-                failures.push(format!("{source}: {error}"));
-                continue;
-            }
-        };
-        let response = match response.error_for_status() {
-            Ok(response) => response,
-            Err(error) => {
-                failures.push(format!("{source}: {error}"));
-                continue;
-            }
-        };
-        let release = match response.json::<RemoteRelease>().await {
-            Ok(release) => release,
-            Err(error) => {
-                failures.push(format!("{source}: {error}"));
-                continue;
-            }
-        };
-        let latest = match parse_version(&release.tag_name) {
-            Ok(version) => version,
-            Err(error) => {
-                failures.push(format!("{source}: {error}"));
-                continue;
-            }
-        };
-        let result = UpdateCheck {
-            current_version: current.to_string(),
-            latest_version: latest.to_string(),
-            update_available: latest > current,
-            source: source.to_string(),
-            release_url: format!("{release_base}{}", release.tag_name),
-        };
-        if result.update_available {
-            return Ok(result);
-        }
-        available_fallback = match available_fallback {
-            Some(existing)
-                if parse_version(&existing.latest_version)
-                    .map(|version| version >= latest)
-                    .unwrap_or(false) =>
-            {
-                Some(existing)
-            }
-            _ => Some(result),
-        };
-    }
+#[tauri::command]
+async fn install_software_update<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    let pending_update = app.state::<AppState>().pending_software_update.clone();
+    let Some(pending) = pending_update.lock().await.take() else {
+        return Err("更新尚未下载完成".to_string());
+    };
+    pending
+        .update
+        .install(&pending.bytes)
+        .map_err(|error| format!("安装更新失败：{error}"))?;
 
-    if let Some(result) = available_fallback {
-        return Ok(result);
-    }
+    #[cfg(target_os = "macos")]
+    app.restart();
 
-    Err(format!(
-        "暂时无法连接 Gitee 或 GitHub：{}",
-        failures.join("；")
-    ))
+    #[allow(unreachable_code)]
+    Ok(())
 }
 
 #[tauri::command]
@@ -570,6 +601,7 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--background"]),
@@ -591,6 +623,8 @@ pub fn run() {
                 wallpaper_cache: cache_dir,
                 last_auto_update: Arc::new(Mutex::new(None)),
                 auto_update_lock: Arc::new(tokio::sync::Mutex::new(())),
+                software_update_lock: Arc::new(tokio::sync::Mutex::new(())),
+                pending_software_update: Arc::new(tokio::sync::Mutex::new(None)),
                 quitting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             });
             build_tray(app)?;
@@ -614,6 +648,20 @@ pub fn run() {
                         let _ = handle.emit("auto-update-error", error);
                     }
                     tokio::time::sleep(Duration::from_secs(15 * 60)).await;
+                }
+            });
+            let update_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(8)).await;
+                loop {
+                    let auto_download = {
+                        let state = update_handle.state::<AppState>();
+                        read_settings(&state.config_path).auto_download_updates
+                    };
+                    if auto_download {
+                        let _ = prepare_software_update_inner(update_handle.clone(), true).await;
+                    }
+                    tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
                 }
             });
             Ok(())
@@ -640,7 +688,8 @@ pub fn run() {
             run_auto_update,
             get_platform,
             get_app_version,
-            check_for_updates,
+            prepare_software_update,
+            install_software_update,
             open_external,
             open_wallpaper_folder
         ])
@@ -650,7 +699,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_version, should_reapply_cached_wallpaper, trusted_external_url};
+    use super::{should_reapply_cached_wallpaper, trusted_external_url, Settings};
 
     #[test]
     fn reuses_todays_cached_wallpaper_for_a_refresh() {
@@ -676,16 +725,19 @@ mod tests {
     }
 
     #[test]
-    fn accepts_prefixed_release_versions() {
-        assert_eq!(parse_version("v0.3.6").unwrap().to_string(), "0.3.6");
-        assert!(parse_version("not-a-version").is_err());
-    }
-
-    #[test]
     fn only_opens_known_https_sites() {
         assert!(trusted_external_url("https://gitee.com/Hyman25/mybingwallpaper").is_ok());
         assert!(trusted_external_url("https://hanhuang22.github.io/mybingwallpaper/").is_ok());
         assert!(trusted_external_url("http://github.com/hanhuang22/mybingwallpaper").is_err());
         assert!(trusted_external_url("https://example.com/").is_err());
+    }
+
+    #[test]
+    fn migrates_existing_settings_with_safe_defaults() {
+        let settings: Settings =
+            serde_json::from_str(r#"{"autoUpdate":true,"autoStart":false,"lockScreen":false}"#)
+                .unwrap();
+        assert!(settings.auto_download_updates);
+        assert_eq!(settings.theme, "system");
     }
 }

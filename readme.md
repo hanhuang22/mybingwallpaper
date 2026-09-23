@@ -31,7 +31,8 @@
 - 每日自动更新与登录后自动启动
 - Windows 锁屏壁纸实验功能
 - 壁纸说明按需展开，默认保留简洁预览
-- 应用内版本显示与更新检查（Gitee/GitHub 双源）
+- 跟随系统浅色/深色外观，也可在设置中手动覆盖
+- 签名校验的软件更新，可自动下载并由用户决定何时重启安装
 - 一键打开本地壁纸目录
 - 可缩放现代界面与高 DPI 适配
 
@@ -52,7 +53,7 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 | `mybingwallpaper-v<版本>-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
 | `mybingwallpaper-v<版本>-macos-intel.dmg` | Intel Mac |
 
-向 `main` 推送代码时，GitHub Actions 会验证上述五种目标能否构建；推送 `v*` 版本标签时，才会创建或更新对应的 GitHub Release，并将同一批安装包同步到 Gitee Release。当前安装包尚未配置商业代码签名，Windows 可能显示 SmartScreen 提示。macOS 安装包使用完整的 ad-hoc 应用签名保证包内文件完整，但尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
+向 `main` 推送代码时，GitHub Actions 会验证上述五种目标能否构建；推送 `v*` 版本标签时，才会创建或更新对应的 GitHub Release，并将同一批安装包同步到 Gitee Release。v0.3.6 是支持应用内自动更新的起始版本，旧版本需要先手动安装一次 v0.3.6 或更高版本。更新包会经过独立签名校验，但这不等同于商业代码签名：Windows 仍可能显示 SmartScreen 提示，macOS 安装包也尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
 
 ## 技术结构
 
@@ -139,9 +140,11 @@ src-tauri/target/<target>/release/bundle/nsis/*-setup.exe
 npm run tauri build
 ```
 
-macOS 会生成 `.app` 和带有拖动安装界面的 DMG。本项目默认执行完整的 ad-hoc 应用签名，避免下载后的应用包因签名结构不完整而被判断为损坏；若要让安装包无需用户手动放行，仍需 Apple Developer ID 签名与公证。
+macOS 会生成 `.app`、带有拖动安装界面的 DMG，以及供应用内更新使用的 `.app.tar.gz` 和签名文件。本项目默认执行完整的 ad-hoc 应用签名，避免下载后的应用包因签名结构不完整而被判断为损坏；若要让安装包无需用户手动放行，仍需 Apple Developer ID 签名与公证。
 
-GitHub Actions 会构建 Windows x64、x86、ARM64，以及 macOS Intel 和 Apple Silicon。推送 `v*` 标签时，发布工作流会将三个 Windows 架构的 MSI/NSIS 安装包，以及两个 macOS 架构的 DMG 附加到对应 GitHub Release，随后通过加密的 Gitee API Token 创建同版本 Gitee Release 并上传相同文件。Token 只存在于 GitHub Actions Secrets，不会进入源码或安装包。
+生成安装包前需在环境变量中提供 Tauri 更新签名私钥与密码；只验证代码能否编译时可使用 `npm run tauri build -- --no-bundle`。更新公钥已经随客户端发布后不要随意更换，否则旧版本将无法验证后续更新。
+
+GitHub Actions 会构建 Windows x64、x86、ARM64，以及 macOS Intel 和 Apple Silicon。推送 `v*` 标签时，发布工作流会同时生成更新包签名和 `latest.json`，发布到 GitHub 后再通过加密的 Gitee API Token 同步到 Gitee，并维护国内可访问的更新清单。发布所需的 `GITEE_API_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 只存在于 GitHub Actions Secrets，不会进入源码或安装包；客户端仅包含用于验证签名的公钥。
 
 ## 数据源
 

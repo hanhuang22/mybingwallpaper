@@ -16,6 +16,8 @@ export interface Settings {
   autoUpdate: boolean;
   autoStart: boolean;
   lockScreen: boolean;
+  autoDownloadUpdates: boolean;
+  theme: "system" | "light" | "dark";
 }
 
 export interface DateNavigationState {
@@ -27,6 +29,8 @@ export const defaultSettings: Settings = {
   autoUpdate: false,
   autoStart: false,
   lockScreen: false,
+  autoDownloadUpdates: true,
+  theme: "system",
 };
 
 export function formatDateKey(date: Date): string {

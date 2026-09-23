@@ -30,6 +30,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -70,6 +71,15 @@
           "SimpChinese"
         ]
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJGQzA5NzMxQzE1ODhGMEUKUldRT2oxakJNWmZBTDBWTnFaSVRpaDlkY2ZXemdQK0E1eXNMK1Z3bDJLTjNyVyt1U1c5Umc5Q0cK",
+      "endpoints": [
+        "https://gitee.com/Hyman25/mybingwallpaper/raw/updater/latest.json",
+        "https://github.com/hanhuang22/mybingwallpaper/releases/latest/download/latest.json"
+      ]
     }
   }
 }
