@@ -90,6 +90,7 @@ function App() {
   const [updateFeedback, setUpdateFeedback] = useState<UpdateFeedback | null>(null);
   const wallpaperRequest = useRef(0);
   const settingsOpenRef = useRef(settingsOpen);
+  const updateStatusResetTimer = useRef<number | null>(null);
 
   useEffect(() => {
     settingsOpenRef.current = settingsOpen;
@@ -102,6 +103,36 @@ function App() {
   const syncToday = useCallback((date = formatDateKey(new Date())) => {
     setDateNavigation((current) => syncDateNavigation(current, date));
   }, []);
+
+  const cancelUpdateStatusReset = useCallback(() => {
+    if (updateStatusResetTimer.current !== null) {
+      window.clearTimeout(updateStatusResetTimer.current);
+      updateStatusResetTimer.current = null;
+    }
+  }, []);
+
+  const clearUpdateStatus = useCallback(() => {
+    cancelUpdateStatusReset();
+    setUpdateInfo(null);
+    setUpdateFeedback(null);
+  }, [cancelUpdateStatusReset]);
+
+  const scheduleUpdateStatusReset = useCallback(() => {
+    cancelUpdateStatusReset();
+    updateStatusResetTimer.current = window.setTimeout(() => {
+      updateStatusResetTimer.current = null;
+      setUpdateInfo(null);
+      setUpdateFeedback(null);
+    }, 3_000);
+  }, [cancelUpdateStatusReset]);
+
+  const closeSettings = useCallback(() => {
+    settingsOpenRef.current = false;
+    setSettingsOpen(false);
+    if (!updateInfo?.updateAvailable && !downloadingUpdate) clearUpdateStatus();
+  }, [clearUpdateStatus, downloadingUpdate, updateInfo?.updateAvailable]);
+
+  useEffect(() => () => cancelUpdateStatusReset(), [cancelUpdateStatusReset]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -237,6 +268,7 @@ function App() {
         }
       }),
       listen<string>("software-update-ready", (event) => {
+        cancelUpdateStatusReset();
         setDownloadingUpdate(false);
         setUpdateProgress(100);
         setUpdateInfo({
@@ -266,7 +298,7 @@ function App() {
       disposed = true;
       stopListening.forEach((unlisten) => unlisten());
     };
-  }, [appVersion, setSelectedDate, syncToday]);
+  }, [appVersion, cancelUpdateStatusReset, setSelectedDate, syncToday]);
 
   const updateSettings = async (patch: Partial<Settings>) => {
     const next = { ...settings, ...patch };
@@ -356,6 +388,7 @@ function App() {
       await openExternal(GITEE_RELEASES);
       return;
     }
+    cancelUpdateStatusReset();
     setCheckingUpdate(true);
     setUpdateInfo(null);
     setUpdateFeedback({ kind: "info", text: "正在连接更新服务…" });
@@ -368,17 +401,24 @@ function App() {
           ? `发现新版本 v${result.latestVersion}`
           : `当前已是最新版本 v${result.currentVersion}`,
       });
+      if (!result.updateAvailable) {
+        if (settingsOpenRef.current) scheduleUpdateStatusReset();
+        else clearUpdateStatus();
+      }
     } catch (reason) {
-      setUpdateFeedback({
-        kind: "error",
-        text: `检查更新失败：${reason instanceof Error ? reason.message : String(reason)}`,
-      });
+      if (settingsOpenRef.current) {
+        setUpdateFeedback({
+          kind: "error",
+          text: `检查更新失败：${reason instanceof Error ? reason.message : String(reason)}`,
+        });
+      }
     } finally {
       setCheckingUpdate(false);
     }
   };
 
   const downloadSoftwareUpdate = async () => {
+    cancelUpdateStatusReset();
     setDownloadingUpdate(true);
     setUpdateProgress(null);
     setUpdateFeedback({ kind: "info", text: "正在下载并校验更新包…" });
@@ -508,14 +548,14 @@ function App() {
       )}
 
       {settingsOpen && (
-        <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}>
+        <div className="settings-backdrop" role="presentation" onMouseDown={closeSettings}>
           <aside className="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="settings-heading">
               <div>
                 <p className="eyebrow">偏好设置</p>
                 <h2 id="settings-title">让壁纸自动焕新</h2>
               </div>
-              <button className="icon-button" type="button" aria-label="关闭设置" onClick={() => setSettingsOpen(false)}><X size={20} /></button>
+              <button className="icon-button" type="button" aria-label="关闭设置" onClick={closeSettings}><X size={20} /></button>
             </div>
             <div className="setting-list">
               <label className="setting-row">
@@ -577,7 +617,7 @@ function App() {
                     {downloadingUpdate ? "下载中" : "下载更新"}
                   </button>
                 ) : (
-                  <button className="settings-action" type="button" disabled={checkingUpdate} onClick={() => void checkForUpdates()}>
+                  <button className="settings-action" type="button" disabled={checkingUpdate || Boolean(updateInfo)} onClick={() => void checkForUpdates()}>
                     {checkingUpdate ? <LoaderCircle className="spin" size={16} /> : updateInfo ? <CheckCircle2 size={16} /> : <RefreshCw size={16} />}
                     {checkingUpdate ? "检查中" : updateInfo ? "已是最新" : "检查更新"}
                   </button>
