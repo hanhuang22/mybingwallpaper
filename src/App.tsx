@@ -355,7 +355,9 @@ function App() {
           <div className="image-copy-heading">
             <div>
               <p className="eyebrow"><CalendarDays size={14} /> {friendlyDate(selectedDate)}</p>
-              <h1>{title.headline}</h1>
+              <h1 className={title.headline.length > 18 ? "long-title" : undefined}>
+                {title.headline}
+              </h1>
             </div>
             {(title.attribution || wallpaper?.description) && (
               <button

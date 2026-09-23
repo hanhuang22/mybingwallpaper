@@ -19,6 +19,24 @@ describe("wallpaper helpers", () => {
     });
   });
 
+  it("parses pre-February 2022 titles without a pipe separator", () => {
+    expect(parseTitle(
+      "睡在海滩上的竖琴海豹，纽约长岛 (© Vicki Jauron/Getty Images)  -  2022/01/01",
+    )).toEqual({
+      headline: "睡在海滩上的竖琴海豹，纽约长岛",
+      attribution: "(© Vicki Jauron/Getty Images)",
+    });
+  });
+
+  it("parses early archive credits whose copyright mark is at the end", () => {
+    expect(parseTitle(
+      "从“新”开始：新生的企鹅宝宝寄托新的希望(Thorsten Milse/Photolibrary ©) - 2010/01/01",
+    )).toEqual({
+      headline: "从“新”开始：新生的企鹅宝宝寄托新的希望",
+      attribution: "(Thorsten Milse/Photolibrary ©)",
+    });
+  });
+
   it("moves across month boundaries safely", () => {
     expect(addDays("2026-01-31", 1)).toBe("2026-02-01");
   });

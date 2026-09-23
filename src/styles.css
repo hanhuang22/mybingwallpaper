@@ -112,7 +112,8 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .image-copy-heading > div { min-width: 0; }
 
 .eyebrow { gap: 7px; margin: 0 0 7px; color: rgba(255,255,255,.68); font-size: 11px; font-weight: 650; letter-spacing: .04em; }
-.image-copy h1 { margin: 0; overflow: hidden; font-size: clamp(24px, 3.6vw, 40px); font-weight: 650; line-height: 1.08; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 2px 18px rgba(0,0,0,.75); }
+.image-copy h1 { max-width: 600px; margin: 0; overflow-wrap: anywhere; font-size: clamp(24px, 3.6vw, 40px); font-weight: 650; line-height: 1.08; letter-spacing: -.025em; text-shadow: 0 2px 18px rgba(0,0,0,.75); }
+.image-copy h1.long-title { font-size: clamp(20px, 2.8vw, 32px); line-height: 1.18; }
 .image-info-toggle {
   display: flex;
   flex: 0 0 auto;
@@ -433,6 +434,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .image-copy { bottom: 12px; left: 16px; width: calc(100% - 32px); padding: 8px 0; }
   .image-copy-heading { align-items: center; gap: 10px; }
   .image-copy h1 { font-size: 22px; }
+  .image-copy h1.long-title { font-size: 18px; }
 }
 
 @media (hover: none) {

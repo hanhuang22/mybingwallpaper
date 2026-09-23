@@ -41,10 +41,31 @@ export function dateToApiKey(date: string): string {
 }
 
 export function parseTitle(title: string): { headline: string; attribution: string } {
-  const [headline, ...rest] = title.split("|");
+  const withoutDate = title
+    .replace(/\s*[-–—]\s*\d{4}\/\d{2}\/\d{2}\s*$/, "")
+    .trim();
+  const separator = withoutDate.indexOf("|");
+  if (separator >= 0) {
+    return {
+      headline: withoutDate.slice(0, separator).trim() || "必应每日壁纸",
+      attribution: withoutDate.slice(separator + 1).trim(),
+    };
+  }
+
+  const copyright = withoutDate.lastIndexOf("©");
+  const asciiParenthesis = copyright >= 0 ? withoutDate.lastIndexOf("(", copyright) : -1;
+  const fullWidthParenthesis = copyright >= 0 ? withoutDate.lastIndexOf("（", copyright) : -1;
+  const attributionStart = Math.max(asciiParenthesis, fullWidthParenthesis);
+  const hasTrailingAttribution =
+    attributionStart > 0 && (withoutDate.endsWith(")") || withoutDate.endsWith("）"));
+
   return {
-    headline: headline.trim() || "必应每日壁纸",
-    attribution: rest.join("|").replace(/\s+-\s+\d{4}\/\d{2}\/\d{2}\s*$/, "").trim(),
+    headline: (hasTrailingAttribution
+      ? withoutDate.slice(0, attributionStart)
+      : withoutDate).trim() || "必应每日壁纸",
+    attribution: hasTrailingAttribution
+      ? withoutDate.slice(attributionStart).trim()
+      : "",
   };
 }
 
