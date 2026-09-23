@@ -38,6 +38,7 @@ import {
 } from "./lib/wallpaper";
 
 type Action = "loading" | "applying" | "saving" | null;
+type UpdateFeedback = { kind: "success" | "error" | "info"; text: string };
 
 interface UpdateCheck {
   currentVersion: string;
@@ -86,7 +87,13 @@ function App() {
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateCheck | null>(null);
+  const [updateFeedback, setUpdateFeedback] = useState<UpdateFeedback | null>(null);
   const wallpaperRequest = useRef(0);
+  const settingsOpenRef = useRef(settingsOpen);
+
+  useEffect(() => {
+    settingsOpenRef.current = settingsOpen;
+  }, [settingsOpen]);
 
   const setSelectedDate = useCallback((date: string) => {
     setDateNavigation((current) => ({ ...current, selectedDate: date }));
@@ -238,7 +245,14 @@ function App() {
           updateAvailable: true,
           readyToRestart: true,
         });
-        setMessage(`v${event.payload} 已准备好，重启即可完成更新`);
+        setUpdateFeedback({
+          kind: "success",
+          text: `v${event.payload} 已下载完成，重启应用即可安装`,
+        });
+        if (!settingsOpenRef.current) {
+          setMessage(`v${event.payload} 已准备好，重启即可完成更新`);
+          window.setTimeout(() => setMessage(""), 4500);
+        }
       }),
     ]).then((unlisteners) => {
       if (disposed) {
@@ -344,18 +358,21 @@ function App() {
     }
     setCheckingUpdate(true);
     setUpdateInfo(null);
-    setError("");
+    setUpdateFeedback({ kind: "info", text: "正在连接更新服务…" });
     try {
       const result = await invoke<UpdateCheck>("prepare_software_update", { download: false });
       setUpdateInfo(result);
-      setMessage(
-        result.updateAvailable
+      setUpdateFeedback({
+        kind: "success",
+        text: result.updateAvailable
           ? `发现新版本 v${result.latestVersion}`
           : `当前已是最新版本 v${result.currentVersion}`,
-      );
-      window.setTimeout(() => setMessage(""), 3200);
+      });
     } catch (reason) {
-      setError(`检查更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      setUpdateFeedback({
+        kind: "error",
+        text: `检查更新失败：${reason instanceof Error ? reason.message : String(reason)}`,
+      });
     } finally {
       setCheckingUpdate(false);
     }
@@ -364,27 +381,35 @@ function App() {
   const downloadSoftwareUpdate = async () => {
     setDownloadingUpdate(true);
     setUpdateProgress(null);
-    setError("");
+    setUpdateFeedback({ kind: "info", text: "正在下载并校验更新包…" });
     try {
       const result = await invoke<UpdateCheck>("prepare_software_update", { download: true });
       setUpdateInfo(result);
       if (result.readyToRestart) {
-        setMessage(`v${result.latestVersion} 已准备好，重启即可完成更新`);
+        setUpdateFeedback({
+          kind: "success",
+          text: `v${result.latestVersion} 已下载完成，重启应用即可安装`,
+        });
       }
     } catch (reason) {
-      setError(`下载更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      setUpdateFeedback({
+        kind: "error",
+        text: `下载更新失败：${reason instanceof Error ? reason.message : String(reason)}`,
+      });
     } finally {
       setDownloadingUpdate(false);
     }
   };
 
   const installSoftwareUpdate = async () => {
-    setError("");
-    setMessage("正在安装更新并重新启动…");
+    setUpdateFeedback({ kind: "info", text: "正在安装更新并重新启动…" });
     try {
       await invoke("install_software_update");
     } catch (reason) {
-      setError(`安装更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      setUpdateFeedback({
+        kind: "error",
+        text: `安装更新失败：${reason instanceof Error ? reason.message : String(reason)}`,
+      });
     }
   };
 
@@ -565,6 +590,12 @@ function App() {
                   }}
                 />
               </label>
+              {updateFeedback && (
+                <div className={`settings-feedback ${updateFeedback.kind}`} role={updateFeedback.kind === "error" ? "alert" : "status"}>
+                  {updateFeedback.kind === "success" ? <CheckCircle2 size={16} /> : updateFeedback.kind === "error" ? <Info size={16} /> : <LoaderCircle className={checkingUpdate || downloadingUpdate ? "spin" : undefined} size={16} />}
+                  <span>{updateFeedback.text}</span>
+                </div>
+              )}
             </div>
             <div className="settings-links" aria-label="项目链接">
               <button type="button" onClick={() => void openExternal(OFFICIAL_SITE)}><Globe2 size={15} />官方网站<ExternalLink size={13} /></button>
