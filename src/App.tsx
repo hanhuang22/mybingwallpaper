@@ -560,6 +560,12 @@ function App() {
                     {updateInfo?.updateAvailable && ` · 最新 v${updateInfo.latestVersion}`}
                     {downloadingUpdate && ` · 下载中${updateProgress === null ? "…" : ` ${updateProgress}%`}`}
                   </small>
+                  {updateFeedback && (
+                    <em className={`update-inline-feedback ${updateFeedback.kind}`} role={updateFeedback.kind === "error" ? "alert" : "status"}>
+                      {updateFeedback.kind === "success" ? <CheckCircle2 size={14} /> : updateFeedback.kind === "error" ? <Info size={14} /> : <LoaderCircle className={checkingUpdate || downloadingUpdate ? "spin" : undefined} size={14} />}
+                      {updateFeedback.text}
+                    </em>
+                  )}
                 </span>
                 {updateInfo?.readyToRestart ? (
                   <button className="settings-action accent" type="button" onClick={() => void installSoftwareUpdate()}>
@@ -590,12 +596,6 @@ function App() {
                   }}
                 />
               </label>
-              {updateFeedback && (
-                <div className={`settings-feedback ${updateFeedback.kind}`} role={updateFeedback.kind === "error" ? "alert" : "status"}>
-                  {updateFeedback.kind === "success" ? <CheckCircle2 size={16} /> : updateFeedback.kind === "error" ? <Info size={16} /> : <LoaderCircle className={checkingUpdate || downloadingUpdate ? "spin" : undefined} size={16} />}
-                  <span>{updateFeedback.text}</span>
-                </div>
-              )}
             </div>
             <div className="settings-links" aria-label="项目链接">
               <button type="button" onClick={() => void openExternal(OFFICIAL_SITE)}><Globe2 size={15} />官方网站<ExternalLink size={13} /></button>
