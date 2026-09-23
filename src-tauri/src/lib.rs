@@ -2,6 +2,7 @@ mod platform;
 
 use chrono::{Local, NaiveDate};
 use reqwest::Client;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -21,6 +22,10 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 use url::Url;
 
 const ARCHIVE_BASE: &str = "https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month";
+const GITEE_LATEST_RELEASE: &str =
+    "https://gitee.com/api/v5/repos/Hyman25/mybingwallpaper/releases/latest";
+const GITHUB_LATEST_RELEASE: &str =
+    "https://api.github.com/repos/hanhuang22/mybingwallpaper/releases/latest";
 struct AppState {
     client: Client,
     config_path: PathBuf,
@@ -55,6 +60,11 @@ struct RemoteWallpaper {
     #[serde(default)]
     imgdesc: String,
     imgurl: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RemoteRelease {
+    tag_name: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -115,6 +125,81 @@ fn image_url(url: &str) -> Result<Url, String> {
         return Err("壁纸来源不在允许列表中".to_string());
     }
     Ok(parsed)
+}
+
+fn parse_version(value: &str) -> Result<Version, String> {
+    Version::parse(value.trim().trim_start_matches(['v', 'V']))
+        .map_err(|_| format!("无法识别版本号：{value}"))
+}
+
+async fn fallback_release_status(
+    client: &Client,
+    current_version: &str,
+    updater_error: impl std::fmt::Display,
+) -> Result<SoftwareUpdateStatus, String> {
+    let current = parse_version(current_version)?;
+    let sources = [
+        ("Gitee", GITEE_LATEST_RELEASE),
+        ("GitHub", GITHUB_LATEST_RELEASE),
+    ];
+    let mut failures = Vec::new();
+    let mut latest_release: Option<Version> = None;
+
+    for (source, endpoint) in sources {
+        let response = match client.get(endpoint).send().await {
+            Ok(response) => response,
+            Err(error) => {
+                failures.push(format!("{source}: {error}"));
+                continue;
+            }
+        };
+        let response = match response.error_for_status() {
+            Ok(response) => response,
+            Err(error) => {
+                failures.push(format!("{source}: {error}"));
+                continue;
+            }
+        };
+        let release = match response.json::<RemoteRelease>().await {
+            Ok(release) => release,
+            Err(error) => {
+                failures.push(format!("{source}: {error}"));
+                continue;
+            }
+        };
+        let version = match parse_version(&release.tag_name) {
+            Ok(version) => version,
+            Err(error) => {
+                failures.push(format!("{source}: {error}"));
+                continue;
+            }
+        };
+        if latest_release
+            .as_ref()
+            .is_none_or(|latest| version > *latest)
+        {
+            latest_release = Some(version);
+        }
+    }
+
+    if let Some(latest) = latest_release {
+        if latest <= current {
+            return Ok(SoftwareUpdateStatus {
+                current_version: current.to_string(),
+                latest_version: latest.to_string(),
+                update_available: false,
+                ready_to_restart: false,
+            });
+        }
+        return Err(format!(
+            "发现新版本 v{latest}，但签名更新清单尚未就绪，请稍后重试或使用国内下载"
+        ));
+    }
+
+    Err(format!(
+        "更新清单暂不可用（{updater_error}），版本服务也无法连接：{}",
+        failures.join("；")
+    ))
 }
 
 fn trusted_external_url(url: &str) -> Result<Url, String> {
@@ -326,9 +411,10 @@ async fn prepare_software_update_inner<R: Runtime>(
     app: tauri::AppHandle<R>,
     download: bool,
 ) -> Result<SoftwareUpdateStatus, String> {
-    let (update_lock, pending_update) = {
+    let (client, update_lock, pending_update) = {
         let state = app.state::<AppState>();
         (
+            state.client.clone(),
             state.software_update_lock.clone(),
             state.pending_software_update.clone(),
         )
@@ -350,17 +436,19 @@ async fn prepare_software_update_inner<R: Runtime>(
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|error| format!("无法初始化更新服务：{error}"))?;
-    let Some(update) = updater
-        .check()
-        .await
-        .map_err(|error| format!("无法获取更新信息：{error}"))?
-    else {
-        return Ok(SoftwareUpdateStatus {
-            current_version: current_version.clone(),
-            latest_version: current_version,
-            update_available: false,
-            ready_to_restart: false,
-        });
+    let update = match updater.check().await {
+        Ok(Some(update)) => update,
+        Ok(None) => {
+            return Ok(SoftwareUpdateStatus {
+                current_version: current_version.clone(),
+                latest_version: current_version,
+                update_available: false,
+                ready_to_restart: false,
+            });
+        }
+        Err(error) => {
+            return fallback_release_status(&client, &current_version, error).await;
+        }
     };
 
     let latest_version = update.version.clone();
@@ -699,7 +787,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{should_reapply_cached_wallpaper, trusted_external_url, Settings};
+    use super::{parse_version, should_reapply_cached_wallpaper, trusted_external_url, Settings};
 
     #[test]
     fn reuses_todays_cached_wallpaper_for_a_refresh() {
@@ -730,6 +818,12 @@ mod tests {
         assert!(trusted_external_url("https://hanhuang22.github.io/mybingwallpaper/").is_ok());
         assert!(trusted_external_url("http://github.com/hanhuang22/mybingwallpaper").is_err());
         assert!(trusted_external_url("https://example.com/").is_err());
+    }
+
+    #[test]
+    fn accepts_prefixed_release_versions() {
+        assert_eq!(parse_version("v0.3.6").unwrap().to_string(), "0.3.6");
+        assert!(parse_version("not-a-version").is_err());
     }
 
     #[test]
