@@ -77,6 +77,7 @@ function App() {
   const [error, setError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [detailsHovered, setDetailsHovered] = useState(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">("browser");
   const [appVersion, setAppVersion] = useState("0.3.6");
@@ -117,6 +118,7 @@ function App() {
 
   useEffect(() => {
     setDetailsExpanded(false);
+    setDetailsHovered(false);
     void loadWallpaper(selectedDate);
   }, [loadWallpaper, selectedDate]);
 
@@ -327,6 +329,7 @@ function App() {
   };
 
   const title = parseTitle(wallpaper?.title ?? "必应每日壁纸");
+  const showDetails = detailsExpanded || detailsHovered;
 
   return (
     <main className="app-shell">
@@ -338,7 +341,17 @@ function App() {
           <div className="image-placeholder"><ImageIcon size={44} /></div>
         )}
         <div className="image-shade" aria-hidden="true" />
-        <div className={`image-copy${detailsExpanded ? " expanded" : ""}`}>
+        <div
+          className={`image-copy${showDetails ? " expanded" : ""}${detailsExpanded ? " pinned" : ""}`}
+          onMouseEnter={() => setDetailsHovered(true)}
+          onMouseLeave={() => setDetailsHovered(false)}
+        >
+          {showDetails && (
+            <div className="image-copy-details">
+              {title.attribution && <p className="attribution">{title.attribution}</p>}
+              {wallpaper?.description && <p className="description">{wallpaper.description}</p>}
+            </div>
+          )}
           <div className="image-copy-heading">
             <div>
               <p className="eyebrow"><CalendarDays size={14} /> {friendlyDate(selectedDate)}</p>
@@ -348,22 +361,18 @@ function App() {
               <button
                 className="image-info-toggle"
                 type="button"
-                aria-label={detailsExpanded ? "收起壁纸说明" : "展开壁纸说明"}
+                aria-label={detailsExpanded ? "取消固定壁纸说明" : "固定展开壁纸说明"}
                 aria-expanded={detailsExpanded}
+                title={detailsExpanded ? "取消固定说明" : "固定展开说明"}
+                onFocus={() => setDetailsHovered(true)}
+                onBlur={() => setDetailsHovered(false)}
                 onClick={() => setDetailsExpanded((expanded) => !expanded)}
               >
                 <Info size={16} />
-                <span>{detailsExpanded ? "收起" : "详情"}</span>
-                {detailsExpanded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                {detailsExpanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
               </button>
             )}
           </div>
-          {detailsExpanded && (
-            <div className="image-copy-details">
-              {title.attribution && <p className="attribution">{title.attribution}</p>}
-              {wallpaper?.description && <p className="description">{wallpaper.description}</p>}
-            </div>
-          )}
         </div>
         {(action === "loading" || action === "applying" || action === "saving") && (
           <div className="loading-indicator" role="status">
