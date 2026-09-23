@@ -655,8 +655,13 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id("main")
         .menu(&menu)
         .show_menu_on_left_click(true);
+
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.icon_as_template(true);
     }
     builder
         .on_menu_event(|app, event| match event.id.as_ref() {
