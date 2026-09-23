@@ -1,6 +1,6 @@
 [package]
 name = "my-bing-wallpaper"
-version = "0.3.5"
+version = "0.3.6"
 description = "A modern cross-platform Bing wallpaper app"
 authors = ["My Bing Wallpaper contributors"]
 edition = "2021"
@@ -18,8 +18,10 @@ dirs = "6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+semver = "1"
 tauri = { version = "2", features = ["tray-icon", "image-png", "image-ico"] }
 tauri-plugin-autostart = "2"
+tauri-plugin-opener = "2"
 tokio = { version = "1", features = ["sync", "time"] }
 url = "2"
 

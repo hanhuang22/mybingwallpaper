@@ -2,6 +2,7 @@ mod platform;
 
 use chrono::{Local, NaiveDate};
 use reqwest::Client;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -16,9 +17,14 @@ use tauri::{
     Emitter, Manager, Runtime, State, WindowEvent,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
 const ARCHIVE_BASE: &str = "https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month";
+const GITEE_LATEST_RELEASE: &str =
+    "https://gitee.com/api/v5/repos/Hyman25/mybingwallpaper/releases/latest";
+const GITHUB_LATEST_RELEASE: &str =
+    "https://api.github.com/repos/hanhuang22/mybingwallpaper/releases/latest";
 
 struct AppState {
     client: Client,
@@ -46,6 +52,21 @@ struct RemoteWallpaper {
     #[serde(default)]
     imgdesc: String,
     imgurl: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RemoteRelease {
+    tag_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateCheck {
+    current_version: String,
+    latest_version: String,
+    update_available: bool,
+    source: String,
+    release_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,6 +105,24 @@ fn image_url(url: &str) -> Result<Url, String> {
         .any(|suffix| host == *suffix || host.ends_with(&format!(".{suffix}")))
     {
         return Err("壁纸来源不在允许列表中".to_string());
+    }
+    Ok(parsed)
+}
+
+fn parse_version(value: &str) -> Result<Version, String> {
+    Version::parse(value.trim().trim_start_matches(['v', 'V']))
+        .map_err(|_| format!("无法识别版本号：{value}"))
+}
+
+fn trusted_external_url(url: &str) -> Result<Url, String> {
+    let parsed = Url::parse(url).map_err(|_| "链接格式无效".to_string())?;
+    if parsed.scheme() != "https" {
+        return Err("仅允许打开 HTTPS 链接".to_string());
+    }
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+    let allowed = ["github.com", "gitee.com", "hanhuang22.github.io"];
+    if !allowed.iter().any(|candidate| host == *candidate) {
+        return Err("该链接不在允许列表中".to_string());
     }
     Ok(parsed)
 }
@@ -276,6 +315,113 @@ async fn save_wallpaper(
 }
 
 #[tauri::command]
+fn get_app_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+#[tauri::command]
+async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheck, String> {
+    let sources = [
+        (
+            "Gitee",
+            GITEE_LATEST_RELEASE,
+            "https://gitee.com/Hyman25/mybingwallpaper/releases/tag/",
+        ),
+        (
+            "GitHub",
+            GITHUB_LATEST_RELEASE,
+            "https://github.com/hanhuang22/mybingwallpaper/releases/tag/",
+        ),
+    ];
+    let mut failures = Vec::new();
+    let current = parse_version(env!("CARGO_PKG_VERSION"))?;
+    let mut available_fallback: Option<UpdateCheck> = None;
+
+    for (source, endpoint, release_base) in sources {
+        let response = match state.client.get(endpoint).send().await {
+            Ok(response) => response,
+            Err(error) => {
+                failures.push(format!("{source}: {error}"));
+                continue;
+            }
+        };
+        let response = match response.error_for_status() {
+            Ok(response) => response,
+            Err(error) => {
+                failures.push(format!("{source}: {error}"));
+                continue;
+            }
+        };
+        let release = match response.json::<RemoteRelease>().await {
+            Ok(release) => release,
+            Err(error) => {
+                failures.push(format!("{source}: {error}"));
+                continue;
+            }
+        };
+        let latest = match parse_version(&release.tag_name) {
+            Ok(version) => version,
+            Err(error) => {
+                failures.push(format!("{source}: {error}"));
+                continue;
+            }
+        };
+        let result = UpdateCheck {
+            current_version: current.to_string(),
+            latest_version: latest.to_string(),
+            update_available: latest > current,
+            source: source.to_string(),
+            release_url: format!("{release_base}{}", release.tag_name),
+        };
+        if result.update_available {
+            return Ok(result);
+        }
+        available_fallback = match available_fallback {
+            Some(existing)
+                if parse_version(&existing.latest_version)
+                    .map(|version| version >= latest)
+                    .unwrap_or(false) =>
+            {
+                Some(existing)
+            }
+            _ => Some(result),
+        };
+    }
+
+    if let Some(result) = available_fallback {
+        return Ok(result);
+    }
+
+    Err(format!(
+        "暂时无法连接 Gitee 或 GitHub：{}",
+        failures.join("；")
+    ))
+}
+
+#[tauri::command]
+fn open_external<R: Runtime>(app: tauri::AppHandle<R>, url: String) -> Result<(), String> {
+    let url = trusted_external_url(&url)?;
+    app.opener()
+        .open_url(url.as_str(), None::<&str>)
+        .map_err(|error| format!("无法打开链接：{error}"))
+}
+
+#[tauri::command]
+fn open_wallpaper_folder<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    fs::create_dir_all(&state.wallpaper_cache)
+        .map_err(|error| format!("无法创建壁纸目录：{error}"))?;
+    app.opener()
+        .open_path(
+            state.wallpaper_cache.to_string_lossy().into_owned(),
+            None::<&str>,
+        )
+        .map_err(|error| format!("无法打开壁纸目录：{error}"))
+}
+
+#[tauri::command]
 fn load_settings<R: Runtime>(app: tauri::AppHandle<R>, state: State<'_, AppState>) -> Settings {
     let mut settings = read_settings(&state.config_path);
     settings.auto_start = app.autolaunch().is_enabled().unwrap_or(settings.auto_start);
@@ -423,6 +569,7 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--background"]),
@@ -491,7 +638,11 @@ pub fn run() {
             load_settings,
             save_settings,
             run_auto_update,
-            get_platform
+            get_platform,
+            get_app_version,
+            check_for_updates,
+            open_external,
+            open_wallpaper_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running My Bing Wallpaper");
@@ -499,7 +650,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::should_reapply_cached_wallpaper;
+    use super::{parse_version, should_reapply_cached_wallpaper, trusted_external_url};
 
     #[test]
     fn reuses_todays_cached_wallpaper_for_a_refresh() {
@@ -522,5 +673,19 @@ mod tests {
             "2026-09-22",
             false,
         ));
+    }
+
+    #[test]
+    fn accepts_prefixed_release_versions() {
+        assert_eq!(parse_version("v0.3.6").unwrap().to_string(), "0.3.6");
+        assert!(parse_version("not-a-version").is_err());
+    }
+
+    #[test]
+    fn only_opens_known_https_sites() {
+        assert!(trusted_external_url("https://gitee.com/Hyman25/mybingwallpaper").is_ok());
+        assert!(trusted_external_url("https://hanhuang22.github.io/mybingwallpaper/").is_ok());
+        assert!(trusted_external_url("http://github.com/hanhuang22/mybingwallpaper").is_err());
+        assert!(trusted_external_url("https://example.com/").is_err());
     }
 }

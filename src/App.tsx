@@ -2,12 +2,20 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   CalendarDays,
+  CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Download,
+  ExternalLink,
+  FolderOpen,
+  Globe2,
   ImageIcon,
+  Info,
   LoaderCircle,
   MonitorDown,
+  PackageOpen,
   RefreshCw,
   Settings as SettingsIcon,
   Shuffle,
@@ -28,6 +36,17 @@ import {
 } from "./lib/wallpaper";
 
 type Action = "loading" | "applying" | "saving" | null;
+
+interface UpdateCheck {
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  source: string;
+  releaseUrl: string;
+}
+
+const OFFICIAL_SITE = "https://hanhuang22.github.io/mybingwallpaper/";
+const GITEE_RELEASES = "https://gitee.com/Hyman25/mybingwallpaper/releases";
 
 const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
@@ -57,8 +76,12 @@ function App() {
   const [message, setMessage] = useState("正在载入今日壁纸…");
   const [error, setError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">("browser");
+  const [appVersion, setAppVersion] = useState("0.3.6");
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateCheck | null>(null);
   const wallpaperRequest = useRef(0);
 
   const setSelectedDate = useCallback((date: string) => {
@@ -93,6 +116,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    setDetailsExpanded(false);
     void loadWallpaper(selectedDate);
   }, [loadWallpaper, selectedDate]);
 
@@ -149,9 +173,11 @@ function App() {
     void Promise.all([
       invoke<Settings>("load_settings"),
       invoke<"windows" | "macos">("get_platform"),
-    ]).then(([saved, currentPlatform]) => {
+      invoke<string>("get_app_version"),
+    ]).then(([saved, currentPlatform, currentVersion]) => {
       setSettings(saved);
       setPlatform(currentPlatform);
+      setAppVersion(currentVersion);
     });
 
     let disposed = false;
@@ -252,6 +278,54 @@ function App() {
     }
   };
 
+  const openExternal = async (url: string) => {
+    try {
+      if (isTauri()) {
+        await invoke("open_external", { url });
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } catch (reason) {
+      setError(`打开链接失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
+
+  const openWallpaperFolder = async () => {
+    if (!isTauri()) {
+      setError("请在桌面应用中打开本地壁纸目录");
+      return;
+    }
+    try {
+      await invoke("open_wallpaper_folder");
+    } catch (reason) {
+      setError(`打开目录失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
+
+  const checkForUpdates = async () => {
+    if (!isTauri()) {
+      await openExternal(GITEE_RELEASES);
+      return;
+    }
+    setCheckingUpdate(true);
+    setUpdateInfo(null);
+    setError("");
+    try {
+      const result = await invoke<UpdateCheck>("check_for_updates");
+      setUpdateInfo(result);
+      setMessage(
+        result.updateAvailable
+          ? `发现新版本 v${result.latestVersion}`
+          : `当前已是最新版本 v${result.currentVersion}`,
+      );
+      window.setTimeout(() => setMessage(""), 3200);
+    } catch (reason) {
+      setError(`检查更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
   const title = parseTitle(wallpaper?.title ?? "必应每日壁纸");
 
   return (
@@ -264,11 +338,32 @@ function App() {
           <div className="image-placeholder"><ImageIcon size={44} /></div>
         )}
         <div className="image-shade" aria-hidden="true" />
-        <div className="image-copy">
-          <p className="eyebrow"><CalendarDays size={14} /> {friendlyDate(selectedDate)}</p>
-          <h1>{title.headline}</h1>
-          {title.attribution && <p className="attribution">{title.attribution}</p>}
-          {wallpaper?.description && <p className="description">{wallpaper.description}</p>}
+        <div className={`image-copy${detailsExpanded ? " expanded" : ""}`}>
+          <div className="image-copy-heading">
+            <div>
+              <p className="eyebrow"><CalendarDays size={14} /> {friendlyDate(selectedDate)}</p>
+              <h1>{title.headline}</h1>
+            </div>
+            {(title.attribution || wallpaper?.description) && (
+              <button
+                className="image-info-toggle"
+                type="button"
+                aria-label={detailsExpanded ? "收起壁纸说明" : "展开壁纸说明"}
+                aria-expanded={detailsExpanded}
+                onClick={() => setDetailsExpanded((expanded) => !expanded)}
+              >
+                <Info size={16} />
+                <span>{detailsExpanded ? "收起" : "详情"}</span>
+                {detailsExpanded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+              </button>
+            )}
+          </div>
+          {detailsExpanded && (
+            <div className="image-copy-details">
+              {title.attribution && <p className="attribution">{title.attribution}</p>}
+              {wallpaper?.description && <p className="description">{wallpaper.description}</p>}
+            </div>
+          )}
         </div>
         {(action === "loading" || action === "applying" || action === "saving") && (
           <div className="loading-indicator" role="status">
@@ -341,6 +436,35 @@ function App() {
                   <input type="checkbox" role="switch" checked={settings.lockScreen} onChange={(event) => void updateSettings({ lockScreen: event.target.checked })} />
                 </label>
               )}
+              <div className="setting-row setting-action-row">
+                <span><strong>本地壁纸</strong><small>查看自动下载和已经应用过的壁纸</small></span>
+                <button className="settings-action" type="button" onClick={openWallpaperFolder}>
+                  <FolderOpen size={16} />打开目录
+                </button>
+              </div>
+              <div className="setting-row setting-action-row">
+                <span>
+                  <strong>软件更新</strong>
+                  <small>
+                    当前版本 v{appVersion}
+                    {updateInfo && ` · ${updateInfo.source} 最新 v${updateInfo.latestVersion}`}
+                  </small>
+                </span>
+                {updateInfo?.updateAvailable ? (
+                  <button className="settings-action accent" type="button" onClick={() => void openExternal(updateInfo.releaseUrl)}>
+                    <PackageOpen size={16} />前往下载
+                  </button>
+                ) : (
+                  <button className="settings-action" type="button" disabled={checkingUpdate} onClick={() => void checkForUpdates()}>
+                    {checkingUpdate ? <LoaderCircle className="spin" size={16} /> : updateInfo ? <CheckCircle2 size={16} /> : <RefreshCw size={16} />}
+                    {checkingUpdate ? "检查中" : updateInfo ? "已是最新" : "检查更新"}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="settings-links" aria-label="项目链接">
+              <button type="button" onClick={() => void openExternal(OFFICIAL_SITE)}><Globe2 size={15} />官方网站<ExternalLink size={13} /></button>
+              <button type="button" onClick={() => void openExternal(GITEE_RELEASES)}><PackageOpen size={15} />国内下载<ExternalLink size={13} /></button>
             </div>
             <p className="settings-note">关闭主窗口后应用仍会驻留托盘。请通过托盘菜单完全退出。</p>
           </aside>
