@@ -55,8 +55,8 @@ async function uploadAttachment(releaseId, filePath) {
   const fileName = basename(filePath);
   const args = [
     "--silent", "--show-error", "--fail", "--location", "--http1.1",
-    "--connect-timeout", "20", "--max-time", "90",
-    "--retry", "2", "--retry-all-errors", "--retry-delay", "5",
+    "--connect-timeout", "20", "--max-time", "900",
+    "--retry", "1", "--retry-all-errors", "--retry-delay", "10",
     "--write-out", "%{stderr}HTTP %{http_code}, sent %{size_upload} bytes in %{time_total}s\n",
     "--header", `Authorization: Bearer ${token}`,
     "--form", `access_token=${token}`,
@@ -104,11 +104,16 @@ async function githubReleaseBody() {
   return release.body || `mybingwallpaper ${tag}`;
 }
 
-const assets = (await readdir(assetDir, { withFileTypes: true }))
+const assetPaths = (await readdir(assetDir, { withFileTypes: true }))
   .filter((entry) => entry.isFile())
   .map((entry) => join(assetDir, entry.name))
-  .filter((asset) => basename(asset) !== "latest.json")
-  .sort((a, b) => Number(b.endsWith(".sig")) - Number(a.endsWith(".sig")) || a.localeCompare(b));
+  .filter((asset) => basename(asset) !== "latest.json");
+const assets = (await Promise.all(assetPaths.map(async (path) => ({
+  path,
+  size: (await stat(path)).size,
+}))))
+  .sort((a, b) => a.size - b.size || a.path.localeCompare(b.path))
+  .map(({ path }) => path);
 
 if (assets.length === 0) throw new Error(`No release assets found in ${assetDir}`);
 
