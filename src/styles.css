@@ -20,6 +20,11 @@
   --focus: rgba(255,255,255,.9);
   --accent: #7c78f2;
   --accent-soft: rgba(99,102,241,.16);
+  --calendar-selection: linear-gradient(145deg, #8b5cf6, #4f7df3);
+  --calendar-selection-hover: linear-gradient(145deg, #9d72fa, #658df6);
+  --calendar-selection-text: #fff;
+  --calendar-selection-shadow: 0 7px 20px rgba(99,102,241,.38);
+  --calendar-selection-dot: #fff;
   --primary-button: #f8fafc;
   --primary-button-text: #111827;
 }
@@ -41,6 +46,11 @@
   --focus: rgba(67,56,202,.78);
   --accent: #5b5bd6;
   --accent-soft: rgba(79,70,229,.11);
+  --calendar-selection: #dce8f8;
+  --calendar-selection-hover: #c9dcf4;
+  --calendar-selection-text: #243a59;
+  --calendar-selection-shadow: 0 0 0 1px rgba(75,109,159,.2), 0 5px 14px rgba(54,84,129,.12);
+  --calendar-selection-dot: #466894;
   --primary-button: #202a3c;
   --primary-button-text: #fff;
 }
@@ -298,9 +308,9 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 }
 .calendar-choice:hover:not(:disabled) { background: var(--surface-soft-hover); transform: translateY(-1px); }
 .calendar-choice.selected {
-  color: #fff;
-  background: linear-gradient(145deg, #8b5cf6, #4f7df3);
-  box-shadow: 0 6px 16px rgba(99,102,241,.22);
+  color: var(--calendar-selection-text);
+  background: var(--calendar-selection);
+  box-shadow: var(--calendar-selection-shadow);
 }
 .calendar-choice:disabled { opacity: .24; }
 .calendar-weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
@@ -341,12 +351,17 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   content: "";
 }
 .calendar-day.selected {
-  color: #fff;
-  background: linear-gradient(145deg, #8b5cf6, #4f7df3);
-  box-shadow: 0 7px 20px rgba(99,102,241,.38);
+  color: var(--calendar-selection-text);
+  background: var(--calendar-selection);
+  box-shadow: var(--calendar-selection-shadow);
   font-weight: 700;
 }
-.calendar-day.selected::after { background: #fff; }
+.calendar-choice.selected:hover:not(:disabled),
+.calendar-day.selected:hover:not(:disabled) {
+  color: var(--calendar-selection-text);
+  background: var(--calendar-selection-hover);
+}
+.calendar-day.selected::after { background: var(--calendar-selection-dot); }
 .calendar-footer {
   display: flex;
   align-items: center;
