@@ -95,6 +95,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   opacity: .66;
   animation: ambient-photo-in .5s ease both;
 }
+.ambient-photo.outgoing { animation: ambient-photo-out .55s ease both; }
 
 .ambient {
   position: absolute;
@@ -127,14 +128,14 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .wallpaper-stage {
   min-height: 350px;
   overflow: hidden;
-  border: 1px solid transparent;
   border-radius: 24px;
   background: rgba(15,23,42,.78);
   box-shadow: 0 26px 72px var(--shadow);
   transform: translateZ(0);
-  transition: transform .5s cubic-bezier(.2,.8,.2,1), border-color .5s ease, box-shadow .5s ease;
+  transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s ease;
   will-change: transform;
 }
+.has-wallpaper .wallpaper-stage { background: transparent; }
 .wallpaper-stage::after {
   position: absolute;
   z-index: 1;
@@ -146,7 +147,6 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   transition: opacity .7s ease;
 }
 .wallpaper-stage:hover {
-  border-color: rgba(255,255,255,.12);
   box-shadow: 0 34px 92px var(--shadow);
   transform: translateY(-3px) scale(1.002);
 }
@@ -163,6 +163,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   animation: reveal .45s ease;
   will-change: transform;
 }
+.wallpaper-image.outgoing { animation: none; }
 .image-placeholder { display: grid; place-items: center; color: rgba(255,255,255,.35); }
 .image-shade { z-index: 1; background: linear-gradient(180deg, rgba(0,0,0,.02) 25%, rgba(5,10,20,.22) 55%, rgba(4,8,16,.9) 100%); transition: opacity .7s ease; }
 
@@ -215,6 +216,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   padding: 10px 13px;
   border: 1px solid rgba(255,255,255,.15);
   border-radius: 12px;
+  color: #fff;
   background: rgba(8,12,22,.72);
   box-shadow: 0 12px 30px rgba(0,0,0,.2);
   backdrop-filter: blur(18px);
@@ -464,7 +466,13 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   background: var(--surface-solid);
   box-shadow: -24px 0 70px var(--shadow);
   animation: slide-in .25s ease both;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
+.settings-panel::-webkit-scrollbar { width: 6px; }
+.settings-panel::-webkit-scrollbar-track { background: transparent; }
+.settings-panel::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--text-muted); }
+.settings-panel::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
 .settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .settings-heading .eyebrow { color: var(--text-muted); }
 .settings-heading h2 { margin: 0; font-size: 24px; }
@@ -558,8 +566,9 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes reveal { from { opacity: .2; } to { opacity: 1; } }
+@keyframes reveal { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ambient-photo-in { from { opacity: 0; } to { opacity: .66; } }
+@keyframes ambient-photo-out { from { opacity: .66; } to { opacity: 0; } }
 @keyframes slide-in { from { opacity: 0; transform: translateX(24px); } }
 @keyframes drift { from { transform: translate(-5%, -3%) rotate(-6deg); } to { transform: translate(6%, 4%) rotate(7deg); } }
 @keyframes calendar-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }

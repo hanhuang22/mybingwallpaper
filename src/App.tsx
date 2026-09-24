@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DatePicker } from "./components/DatePicker";
+import { preloadWallpaperImage } from "./lib/image";
 import {
   addDays,
   defaultSettings,
@@ -82,6 +83,7 @@ function App() {
     return { today: currentDate, selectedDate: currentDate };
   });
   const [wallpaper, setWallpaper] = useState<Wallpaper | null>(null);
+  const [outgoingWallpaper, setOutgoingWallpaper] = useState<Wallpaper | null>(null);
   const [action, setAction] = useState<Action>("loading");
   const [message, setMessage] = useState("正在载入今日壁纸…");
   const [error, setError] = useState("");
@@ -100,12 +102,19 @@ function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateCheck | null>(null);
   const [updateFeedback, setUpdateFeedback] = useState<UpdateFeedback | null>(null);
   const wallpaperRequest = useRef(0);
+  const wallpaperRef = useRef<Wallpaper | null>(null);
   const settingsOpenRef = useRef(settingsOpen);
   const updateStatusResetTimer = useRef<number | null>(null);
 
   useEffect(() => {
     settingsOpenRef.current = settingsOpen;
   }, [settingsOpen]);
+
+  useEffect(() => {
+    if (!outgoingWallpaper) return;
+    const timer = window.setTimeout(() => setOutgoingWallpaper(null), 650);
+    return () => window.clearTimeout(timer);
+  }, [outgoingWallpaper]);
 
   const setSelectedDate = useCallback((date: string) => {
     setDateNavigation((current) => ({ ...current, selectedDate: date }));
@@ -159,6 +168,13 @@ function App() {
     return () => media.removeEventListener("change", applyTheme);
   }, [settings.theme]);
 
+  const showWallpaper = useCallback((next: Wallpaper) => {
+    const previous = wallpaperRef.current;
+    setOutgoingWallpaper(previous?.imageUrl !== next.imageUrl ? previous : null);
+    wallpaperRef.current = next;
+    setWallpaper(next);
+  }, []);
+
   const loadWallpaper = useCallback(async (date: string) => {
     const request = wallpaperRequest.current + 1;
     wallpaperRequest.current = request;
@@ -167,20 +183,24 @@ function App() {
     setMessage("正在载入壁纸…");
     try {
       const next = await getWallpaper(date);
-      if (request === wallpaperRequest.current) {
-        setWallpaper(next);
-        setMessage("");
-      }
+      if (request !== wallpaperRequest.current) return null;
+      setMessage("正在加载壁纸图片…");
+      await preloadWallpaperImage(next.imageUrl);
+      if (request !== wallpaperRequest.current) return null;
+      showWallpaper(next);
+      setMessage("");
       return next;
     } catch (reason) {
       if (request === wallpaperRequest.current) {
-        setError(reason instanceof Error ? reason.message : String(reason));
+        const detail = reason instanceof Error ? reason.message : String(reason);
+        setError(`${friendlyDate(date)} 的壁纸加载失败：${detail}${wallpaperRef.current ? "；已保留上一张壁纸" : ""}`);
+        setMessage("");
       }
       return null;
     } finally {
       if (request === wallpaperRequest.current) setAction(null);
     }
-  }, []);
+  }, [showWallpaper]);
 
   useEffect(() => {
     setDetailsExpanded(false);
@@ -258,7 +278,6 @@ function App() {
         syncToday(currentDate);
         setSelectedDate(currentDate);
         void getWallpaper(currentDate).then((record) => {
-          setWallpaper(record);
           return invoke("apply_wallpaper", {
             imageUrl: record.imageUrl,
             date: currentDate,
@@ -336,7 +355,7 @@ function App() {
     try {
       await invoke("apply_wallpaper", {
         imageUrl: wallpaper.imageUrl,
-        date: selectedDate,
+        date: wallpaper.date,
         setLockScreen: platform === "windows" && settings.lockScreen,
       });
       setMessage("壁纸已更新");
@@ -360,7 +379,7 @@ function App() {
     try {
       const path = await invoke<string | null>("save_wallpaper", {
         imageUrl: wallpaper.imageUrl,
-        date: selectedDate,
+        date: wallpaper.date,
       });
       if (path) {
         setMessage(`已保存到 ${path}`);
@@ -499,6 +518,9 @@ function App() {
 
   return (
     <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}`}>
+      {outgoingWallpaper && (
+        <img className="ambient-photo outgoing" src={outgoingWallpaper.imageUrl} alt="" aria-hidden="true" />
+      )}
       {wallpaper && (
         <img
           key={wallpaper.imageUrl}
@@ -510,8 +532,11 @@ function App() {
       )}
       <div className="ambient" aria-hidden="true" />
       <section className="wallpaper-stage" aria-busy={action === "loading"}>
+        {outgoingWallpaper && (
+          <img className="wallpaper-image outgoing" src={outgoingWallpaper.imageUrl} alt="" aria-hidden="true" />
+        )}
         {wallpaper ? (
-          <img className="wallpaper-image" src={wallpaper.imageUrl} alt={title.headline} />
+          <img key={wallpaper.imageUrl} className="wallpaper-image" src={wallpaper.imageUrl} alt={title.headline} />
         ) : (
           <div className="image-placeholder"><ImageIcon size={44} /></div>
         )}
@@ -529,7 +554,7 @@ function App() {
           )}
           <div className="image-copy-heading">
             <div>
-              <p className="eyebrow"><CalendarDays size={14} /> {friendlyDate(selectedDate)}</p>
+              <p className="eyebrow"><CalendarDays size={14} /> {friendlyDate(wallpaper?.date ?? selectedDate)}</p>
               <h1 className={title.headline.length > 18 ? "long-title" : undefined}>
                 {title.headline}
               </h1>
@@ -578,10 +603,10 @@ function App() {
           <button className="button secondary" type="button" disabled={!wallpaper || Boolean(action)} onClick={() => setSelectedDate(randomDate())}>
             <Shuffle size={17} /> 随机一张
           </button>
-          <button className="button secondary" type="button" title={settings.saveWithoutPrompt ? "保存到设置中的原图保存位置" : "选择位置和文件名后保存"} disabled={!wallpaper || Boolean(action)} onClick={saveWallpaper}>
+          <button className="button secondary" type="button" title={settings.saveWithoutPrompt ? "保存到设置中的原图保存位置" : "选择位置和文件名后保存"} disabled={!wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={saveWallpaper}>
             <Download size={17} /> 保存原图
           </button>
-          <button className="button primary" type="button" disabled={!wallpaper || Boolean(action)} onClick={applyWallpaper}>
+          <button className="button primary" type="button" disabled={!wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={applyWallpaper}>
             <MonitorDown size={18} /> 设为壁纸
           </button>
           <button className="icon-button dock-settings" type="button" aria-label="打开设置" title="设置" onClick={() => setSettingsOpen(true)}>
