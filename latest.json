@@ -1,27 +1,27 @@
 {
-  "version": "0.3.8",
-  "notes": "mybingwallpaper v0.3.8",
-  "pub_date": "2026-09-23T20:17:48.819Z",
+  "version": "0.3.9",
+  "notes": "mybingwallpaper v0.3.9",
+  "pub_date": "2026-09-24T06:36:55.958Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.8/mybingwallpaper-v0.3.8-windows-x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDBOZCtvQVFTQzMvaXU3U0gxbi9PdStlUmRFNWR4VmdhWk10RXlIdVlQM3htbnlNUXhpT0hoTWFGQXhjRjlReWc1SGVPa21MTUxBSk1NY044MEhjSndBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTk0NTQ1CWZpbGU65b+F5bqU5aOB57q4XzAuMy44X3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjMuOApid2NjWW01bzh6VWpXU0E0SFNETGhWTm5Wa2lITkx6NUVpWEpEbDNmY2p4WUxKVUl3RkRCaWdhNStPQWxDSDF6N09sTWtBTHFIcFMvUzlsZWFYU1VEQT09Cg=="
+      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.9/mybingwallpaper-v0.3.9-windows-x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDRNV3JlTWJpcWJDWVhNT0xhYThURXllb01kK09wR1h4V2dKRW9KT0ZDOTlSa0FOcXZkcHhmRG1tcDdmRUtzZGdXa21SN0VHdVl1RUgwQWJFL2dZelFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMjIzODUxCWZpbGU65b+F5bqU5aOB57q4XzAuMy45X3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjMuOQp6aHpSU3ZUMnJGeEZHUy9pN1ErNkhuaGdwd2duOEJLdWFFQnZrREVzc09jQWFMNkREN2JpRkN3WldrcWtlSVE2dm5nellvVE5JRU9paUIzeTV6amJDZz09Cg=="
     },
     "windows-i686": {
-      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.8/mybingwallpaper-v0.3.8-windows-x86-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDZmakNSYVRNMXpod29hb3FJL0xKQSt2S3FYQ2FINUFwa3F3WVVVL1pCR0xpSGNNSmM2Q25oMmtCYk9LUEhNcElCVjNaOFNsekpmaVkrdS9uOFNld3dFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTk0NTAyCWZpbGU65b+F5bqU5aOB57q4XzAuMy44X3g4Ni1zZXR1cC5leGUJdmVyc2lvbjowLjMuOApkMGtmSFN5SStlRkFlMDJ0REM3VFpxQng5dng2MjJoYnBOVVhSUGFvVS9TUUFIbDgvbVpzOW5ua2Qzb0JaWGY3Y0JJOWRaSGc4dncvVlRlYmVqRUhDUT09Cg=="
+      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.9/mybingwallpaper-v0.3.9-windows-x86-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDNPcWdVRXlBVDIxUkp3OEU0VFR6aWxpMCtLWThNOUIxRXZCQlNsaWNNRk4zK1dtT2p3THZtaFdSaWM1VmRYVC9Fc2xNS2YzbkQxaXFXa2diSklnRVE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMjIzNzc2CWZpbGU65b+F5bqU5aOB57q4XzAuMy45X3g4Ni1zZXR1cC5leGUJdmVyc2lvbjowLjMuOQpwOTEvQVNjelBuNEpIMHBIR09BaGRDeDlTUWhkRFgxemI5Q2tXUm0weW5tN013K1ZjdnBQT3JZcGF1SmZKWUFsc1lvYlBKa3F3VTBmVzg1Tmp4U2ZCdz09Cg=="
     },
     "windows-aarch64": {
-      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.8/mybingwallpaper-v0.3.8-windows-arm64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTC9FZ2ZZNXIzLzc3WmI2ZjlhbmhUdlQ5ek5vQmJCUEFaM3lUOEwrR1JKUGZIbG15ZVlEOWlWRFlrYVhYVk80anYwS2NEMy9IUG5aSzlRcGhPL3J3UEFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTk0NTE2CWZpbGU65b+F5bqU5aOB57q4XzAuMy44X2FybTY0LXNldHVwLmV4ZQl2ZXJzaW9uOjAuMy44ClFtOWJwUk41M2tHZDV6SmwvbnMwYjhFcTZHNmx0RkpvcVpkUXkzQm50RlZZdU1UNEw5RzBRc3crQzZHVVJTTmc3MHNJWGF2UTYzY2J1MUkreDBRNkJRPT0K"
+      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.9/mybingwallpaper-v0.3.9-windows-arm64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTCtCWFA1Qk1qeHM3Y29PRHhTbzUyTnl3dnlkL2xLWm1sTEVlQ2pTYTYwOVNBbW9LZG1YK0xhRFRmNTNudDJNQzdXdXNOQWRlWW1jWlhQY0tXTkVROUFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMjIzNjQ1CWZpbGU65b+F5bqU5aOB57q4XzAuMy45X2FybTY0LXNldHVwLmV4ZQl2ZXJzaW9uOjAuMy45ClhiT0pMbi9HcGlNakVSVVZkenVldnN5L2xSUDd2M1g2dDRnZk9uSkdVbE5udWhGNGZKTW1DanpCV05xa000ZXNFY2VFVThZUkpJTURvcHFNbkE5T0RnPT0K"
     },
     "darwin-x86_64": {
-      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.8/mybingwallpaper-v0.3.8-macos-intel.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDR0R2VJL1JjOTZld0dnNWV2cnlkT0NvTWw0T0Z4YkdoanVHWWxmM2ZqT0xrcGJZTXV2eE01TjVWZjQwVzFhUERCSHAvOHUzSFJpRzVWMHJJc0RobVF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTk0NDQ2CWZpbGU65b+F5bqU5aOB57q4LmFwcC50YXIuZ3oJdmVyc2lvbjowLjMuOApsY0lpME1GdEZRVURvNDFic2tCTkc5S3FXTk0zckN0UlplS0wzTkFYOW1iZVlJbEZGMUsyQ1B4RFErYUtJeEFUejlBZjlCTG90RVIwOHR2TE5xZDVBUT09Cg=="
+      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.9/mybingwallpaper-v0.3.9-macos-intel.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDFUSTcvVmw2Tzhjc2toNHlQbGdhUU91ZUtnUUNuNlgvNy9Hb1FXeU5EYzA3QzhiNnFrQ0tkUXhJZmZmczFOVVJ0UEZKcXNlTVdBdDJoUTZlYlBIRHdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMjIzNTcwCWZpbGU65b+F5bqU5aOB57q4LmFwcC50YXIuZ3oJdmVyc2lvbjowLjMuOQp4UXFycEFYN09FUE0rZlFlblB5b01QVGdlK0pncElhY1gvcElLSTVpVFNKTHIrQ0F6ZWg3RFZXaUV1aVdDZWowbCtJcnNaZlQrM1o5RFBmRXZRUHVBUT09Cg=="
     },
     "darwin-aarch64": {
-      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.8/mybingwallpaper-v0.3.8-macos-apple-silicon.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDV4T0x0VGg5YzJwOXRWYXFFNUF1TXJJK3RqNjMySGZ6Q21KaEhXaWh1dUJLTktBRzMzUCtxRkg1cmFhUG5tTDJGZnY2MG8rREhrVUlqdjBIMnRLRUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTk0MzcyCWZpbGU65b+F5bqU5aOB57q4LmFwcC50YXIuZ3oJdmVyc2lvbjowLjMuOApIZEE1SU1PQ2RGRjVnTTdlbFVhdW9BZkczVjZVaDZZYVBxVGlmWmJ6RlhvVzVSMkdyNHk5YUY5V05TR1NVc1RGcVNrRFBTQ2ZTVEUxYkU0bWYwNHhDZz09Cg=="
+      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v0.3.9/mybingwallpaper-v0.3.9-macos-apple-silicon.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDVlNkJWSjBiVklMNlJMbW1qU1lEbTdhY3JlTkFMTjJROSt2VXE4MTJaN05XTVAzSVB4cWxXMmNNc0w3azQvcXZmb1dsVGpCNHJaREQrYzRxLy96M3dvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMjIzNjYxCWZpbGU65b+F5bqU5aOB57q4LmFwcC50YXIuZ3oJdmVyc2lvbjowLjMuOQpoYkVtc3FlYjR6Vk9qeTNPZG9Qb2hNa1VXbnpIVHJhMkNrYnZzaGhiMlhlbjByRUE4bCtKa0s5QTdxdmdUMGkyTCt5S1hWRjhXVUtpVHBKUy9teVZDQT09Cg=="
     }
   }
 }
