@@ -1,5 +1,6 @@
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { buildCalendar } from "../lib/calendar";
 import { formatDateKey } from "../lib/wallpaper";
 
 interface DatePickerProps {
@@ -28,19 +29,6 @@ function monthKey(date: Date) {
 function displayDate(value: string) {
   const date = parseDate(value);
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-}
-
-function buildCalendar(viewDate: Date) {
-  const monthStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1, 12);
-  const mondayOffset = (monthStart.getDay() + 6) % 7;
-  const gridStart = new Date(monthStart);
-  gridStart.setDate(gridStart.getDate() - mondayOffset);
-
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(gridStart);
-    date.setDate(gridStart.getDate() + index);
-    return date;
-  });
 }
 
 export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProps) {
