@@ -294,6 +294,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   align-content: center;
   gap: 6px;
   height: 100%;
+  padding: 8px;
   overflow-y: auto;
   scrollbar-width: thin;
 }
