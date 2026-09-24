@@ -588,6 +588,22 @@ fn open_external<R: Runtime>(app: tauri::AppHandle<R>, url: String) -> Result<()
 }
 
 #[tauri::command]
+fn open_lock_screen_settings<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        app.opener()
+            .open_url("ms-settings:lockscreen", None::<&str>)
+            .map_err(|error| format!("无法打开 Windows 锁屏设置：{error}"))
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("此功能仅适用于 Windows".to_string())
+    }
+}
+
+#[tauri::command]
 fn open_wallpaper_cache<R: Runtime>(
     app: tauri::AppHandle<R>,
     state: State<'_, AppState>,
@@ -740,9 +756,6 @@ async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()
         path.is_file(),
     ) {
         platform::set_desktop_wallpaper(&path)?;
-        if cfg!(target_os = "windows") && settings.lock_screen {
-            platform::set_lock_screen_wallpaper(&path)?;
-        }
         {
             let state = app.state::<AppState>();
             remember_active_wallpaper(&state, &path)?;
@@ -753,15 +766,20 @@ async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()
     let wallpaper = fetch_wallpaper(&client, &today).await?;
     download_image(&client, &wallpaper.image_url, &path).await?;
     platform::set_desktop_wallpaper(&path)?;
-    if cfg!(target_os = "windows") && settings.lock_screen {
-        platform::set_lock_screen_wallpaper(&path)?;
-    }
+    let lock_screen_warning = if cfg!(target_os = "windows") && settings.lock_screen {
+        platform::set_lock_screen_wallpaper(&path).err()
+    } else {
+        None
+    };
     {
         let state = app.state::<AppState>();
         remember_active_wallpaper(&state, &path)?;
     }
     *guard.lock().map_err(|_| "更新状态不可用".to_string())? = Some(today.clone());
     let _ = app.emit("auto-update-complete", &today);
+    if let Some(warning) = lock_screen_warning {
+        let _ = app.emit("auto-update-warning", warning);
+    }
     Ok(())
 }
 
@@ -909,6 +927,7 @@ pub fn run() {
             prepare_software_update,
             install_software_update,
             open_external,
+            open_lock_screen_settings,
             open_wallpaper_cache,
             get_save_directory,
             open_save_directory,

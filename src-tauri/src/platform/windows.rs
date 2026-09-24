@@ -1,4 +1,5 @@
-use std::{ffi::c_void, os::windows::ffi::OsStrExt, path::Path, process::Command};
+use std::{ffi::c_void, os::windows::ffi::OsStrExt, path::Path};
+use windows::{core::HSTRING, Storage::StorageFile, System::UserProfile::LockScreen};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
 };
@@ -24,22 +25,30 @@ pub fn set_desktop_wallpaper(path: &Path) -> Result<(), String> {
 }
 
 pub fn set_lock_screen_wallpaper(path: &Path) -> Result<(), String> {
-    let key = r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP";
-    let path = path.to_string_lossy().into_owned();
-    for (name, value, kind) in [
-        ("LockScreenImagePath", path.as_str(), "REG_SZ"),
-        ("LockScreenImageUrl", path.as_str(), "REG_SZ"),
-        ("LockScreenImageStatus", "1", "REG_DWORD"),
-    ] {
-        let status = Command::new("reg")
-            .args(["add", key, "/v", name, "/t", kind, "/d", value, "/f"])
-            .status()
-            .map_err(|error| format!("无法调用 Windows 注册表工具：{error}"))?;
-        if !status.success() {
-            return Err(
-                "桌面壁纸已更新，但锁屏壁纸需要管理员权限或受当前 Windows 版本限制".to_string(),
-            );
-        }
-    }
+    let path = HSTRING::from_wide(&path.as_os_str().encode_wide().collect::<Vec<_>>());
+    let file = StorageFile::GetFileFromPathAsync(&path)
+        .and_then(|operation| operation.get())
+        .map_err(|error| format!("无法读取锁屏壁纸图片：{error}"))?;
+    LockScreen::SetImageFileAsync(&file)
+        .and_then(|operation| operation.get())
+        .map_err(|error| format!("Windows 设置锁屏壁纸失败：{error}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "changes the current user's Windows lock screen; set LOCK_SCREEN_TEST_IMAGE to an existing image"]
+    fn sets_current_users_lock_screen() {
+        let path = std::env::var_os("LOCK_SCREEN_TEST_IMAGE")
+            .expect("LOCK_SCREEN_TEST_IMAGE must point to an existing image");
+        set_lock_screen_wallpaper(Path::new(&path)).unwrap();
+        let original = LockScreen::OriginalImageFile().unwrap();
+        println!(
+            "Windows lock screen image: {}",
+            original.ToString().unwrap()
+        );
+    }
 }

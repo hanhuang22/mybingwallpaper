@@ -95,7 +95,7 @@ function App() {
   const [saveDirectoryError, setSaveDirectoryError] = useState("");
   const [choosingSaveDirectory, setChoosingSaveDirectory] = useState(false);
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">("browser");
-  const [appVersion, setAppVersion] = useState("1.0.0");
+  const [appVersion, setAppVersion] = useState("1.0.1");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
@@ -291,6 +291,11 @@ function App() {
       listen<string>("auto-update-error", (event) => {
         setError(`自动更新失败：${event.payload}`);
       }),
+      listen<string>("auto-update-warning", (event) => {
+        setError("");
+        setMessage(event.payload);
+        window.setTimeout(() => setMessage(""), 6_000);
+      }),
       listen<string>("display-wallpaper-error", (event) => {
         setError(`外接显示器壁纸同步失败：${event.payload}`);
       }),
@@ -416,6 +421,14 @@ function App() {
       await invoke("open_wallpaper_cache");
     } catch (reason) {
       setError(`打开缓存目录失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
+
+  const openLockScreenSettings = async () => {
+    try {
+      await invoke("open_lock_screen_settings");
+    } catch (reason) {
+      setError(`打开锁屏设置失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
 
@@ -642,10 +655,18 @@ function App() {
                 <input type="checkbox" role="switch" checked={settings.autoStart} disabled={!isTauri()} onChange={(event) => void updateSettings({ autoStart: event.target.checked })} />
               </label>
               {platform === "windows" && (
-                <label className="setting-row">
-                  <span><strong>同时更新锁屏</strong><small>Windows 实验功能，可能需要额外系统权限</small></span>
-                  <input type="checkbox" role="switch" checked={settings.lockScreen} onChange={(event) => void updateSettings({ lockScreen: event.target.checked })} />
-                </label>
+                <>
+                  <label className="setting-row">
+                    <span><strong>同时更新锁屏</strong><small>Windows 实验功能，可能受系统策略限制</small></span>
+                    <input type="checkbox" role="switch" checked={settings.lockScreen} onChange={(event) => void updateSettings({ lockScreen: event.target.checked })} />
+                  </label>
+                  <div className="setting-row setting-action-row">
+                    <span><strong>Windows 锁屏背景</strong><small>选择“图片”后，才会显示应用设置的锁屏壁纸</small></span>
+                    <button className="settings-action" type="button" onClick={() => void openLockScreenSettings()}>
+                      <ExternalLink size={16} />打开设置
+                    </button>
+                  </div>
+                </>
               )}
               <div className="setting-row theme-setting-row">
                 <span><strong>外观</strong><small>默认跟随系统的浅色或深色模式</small></span>
