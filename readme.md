@@ -44,19 +44,19 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 
 ## 下载
 
-安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口。请在发布页选择与你的系统和处理器对应的 `.exe` 或 `.dmg`；`.sig`、`.app.tar.gz` 和 `latest.json` 是应用内自动更新所需文件，不是普通安装包。从下一次发布起不再构建 MSI，历史 Release 中的 MSI 不受影响。
+安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口。请在发布页选择与你的系统和处理器对应的 `.exe` 或 `.dmg`；`.sig`、`.app.tar.gz` 和 `latest.json` 是应用内自动更新所需文件，不是普通安装包。从下一次发布起，Windows 仅构建 x64 NSIS `.exe`，不再构建 MSI、x86 或 Windows ARM64；历史 Release 不受影响。
 
 若此前使用 MSI 安装，切换到 NSIS `.exe` 时建议先卸载旧版 MSI，再安装新版，以免 Windows 的“已安装的应用”中留下重复记录。
 
 | 文件名格式 | 适用系统 |
 | --- | --- |
 | `mybingwallpaper-v<版本>-windows-x64-setup.exe` | Windows 10/11，Intel 或 AMD 64 位（推荐安装程序） |
-| `mybingwallpaper-v<版本>-windows-x86-setup.exe` | 32 位 Windows（安装程序） |
-| `mybingwallpaper-v<版本>-windows-arm64-setup.exe` | Windows on ARM（安装程序） |
 | `mybingwallpaper-v<版本>-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
 | `mybingwallpaper-v<版本>-macos-intel.dmg` | Intel Mac |
 
-向 `main` 推送代码时，GitHub Actions 会验证上述五种目标能否构建。全部通过后，如果源码版本号一致且对应的 `v*` 标签尚不存在，工作流会自动创建标签、发布 GitHub Release，并将同一批安装包同步到 Gitee Release；已有标签不会重复发布。`updater` 分支只存放签名更新清单，由发布工作流维护，无需手动合并。也可以手动推送 `v*` 标签触发发布。v0.3.6 是支持应用内自动更新的起始版本，旧版本需要先手动安装一次 v0.3.6 或更高版本。更新包会经过独立签名校验，但这不等同于商业代码签名：Windows 仍可能显示 SmartScreen 提示，macOS 安装包也尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
+Windows 11 ARM 设备可以通过系统模拟运行 x64 安装包。若此前安装了 Windows ARM64 原生版，切换到 x64 版请手动安装；不自动向 ARM64 原生版推送未经验证的跨架构更新。32 位 Windows 无法运行 x64 新版，仍可使用历史版本。
+
+向 `main` 推送代码时，GitHub Actions 会验证上述三种目标能否构建。全部通过后，如果源码版本号一致且对应的 `v*` 标签尚不存在，工作流会自动创建标签、发布 GitHub Release，并将同一批安装包同步到 Gitee Release；已有标签不会重复发布。`updater` 分支只存放签名更新清单，由发布工作流维护，无需手动合并。也可以手动推送 `v*` 标签触发发布。v0.3.6 是支持应用内自动更新的起始版本，旧版本需要先手动安装一次 v0.3.6 或更高版本。更新包会经过独立签名校验，但这不等同于商业代码签名：Windows 仍可能显示 SmartScreen 提示，macOS 安装包也尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
 
 ## 技术结构
 
@@ -92,38 +92,20 @@ npm run dev
 1. 安装 Node.js 24。
 2. 通过 rustup 安装 stable MSVC 工具链。
 3. 安装 Visual Studio Build Tools 的“使用 C++ 的桌面开发”、Windows 10/11 SDK 和 WebView2 Runtime。
-4. 构建 ARM64 时额外安装“适用于 ARM64 的 MSVC C++ 生成工具”和 LLVM/Clang。当前依赖中的 `ring` 在 Windows ARM64 目标上需要 `clang.exe`。
 
 安装 Rust 编译目标：
 
 ```powershell
 rustup target add x86_64-pc-windows-msvc
-rustup target add i686-pc-windows-msvc
-rustup target add aarch64-pc-windows-msvc
 ```
 
-### 选择架构
-
-| 安装包 | Rust 目标 | 适用场景 |
-| --- | --- | --- |
-| x64 | `x86_64-pc-windows-msvc` | Intel/AMD 64 位 Windows；ARM64 Windows 也可通过系统的 x64 模拟运行 |
-| x86 | `i686-pc-windows-msvc` | 仍需兼容的 32 位 Windows |
-| ARM64 | `aarch64-pc-windows-msvc` | ARM Windows 原生版本，ARM 设备优先使用 |
-
-当前在 Windows ARM64 主机上已验证三种目标都能完成 NSIS `.exe` 打包。x64/x86 构建使用 Windows 的跨架构工具链；这不代表产物是 ARM64，最终架构由 `--target` 决定。
+Windows 发布目标为 `x86_64-pc-windows-msvc`。在 Windows ARM64 主机上构建时，也需安装对应的 x64 MSVC 跨架构工具链。
 
 ```powershell
 npm ci
 npm test
 
-# x64
 npm run tauri build -- --target x86_64-pc-windows-msvc
-
-# x86（32 位）
-npm run tauri build -- --target i686-pc-windows-msvc
-
-# ARM64
-npm run tauri build -- --target aarch64-pc-windows-msvc
 ```
 
 显式指定目标后，产物位于：
@@ -145,7 +127,7 @@ macOS 会生成 `.app`、带有拖动安装界面的 DMG，以及供应用内更
 
 生成安装包前需在环境变量中提供 Tauri 更新签名私钥与密码；只验证代码能否编译时可使用 `npm run tauri build -- --no-bundle`。更新公钥已经随客户端发布后不要随意更换，否则旧版本将无法验证后续更新。
 
-GitHub Actions 会构建 Windows x64、x86、ARM64，以及 macOS Intel 和 Apple Silicon。推送 `v*` 标签时，发布工作流会同时生成更新包签名和 `latest.json`，发布到 GitHub 后再通过加密的 Gitee API Token 同步到 Gitee，并维护国内可访问的更新清单。发布所需的 `GITEE_API_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 只存在于 GitHub Actions Secrets，不会进入源码或安装包；客户端仅包含用于验证签名的公钥。
+GitHub Actions 会构建 Windows x64，以及 macOS Intel 和 Apple Silicon。推送 `v*` 标签时，发布工作流会同时生成更新包签名和 `latest.json`，发布到 GitHub 后再通过加密的 Gitee API Token 同步到 Gitee，并维护国内可访问的更新清单。发布所需的 `GITEE_API_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 只存在于 GitHub Actions Secrets，不会进入源码或安装包；客户端仅包含用于验证签名的公钥。
 
 ## 数据源
 

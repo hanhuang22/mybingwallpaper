@@ -17,10 +17,6 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             asset: x64
-          - target: i686-pc-windows-msvc
-            asset: x86
-          - target: aarch64-pc-windows-msvc
-            asset: arm64
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -133,8 +129,6 @@ jobs:
             | 文件名 | 适用系统 |
             | --- | --- |
             | `mybingwallpaper-${{ github.ref_name }}-windows-x64-setup.exe` | Windows 10/11，Intel 或 AMD 64 位（推荐安装程序） |
-            | `mybingwallpaper-${{ github.ref_name }}-windows-x86-setup.exe` | 32 位 Windows（安装程序） |
-            | `mybingwallpaper-${{ github.ref_name }}-windows-arm64-setup.exe` | Windows on ARM（安装程序） |
             | `mybingwallpaper-${{ github.ref_name }}-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
             | `mybingwallpaper-${{ github.ref_name }}-macos-intel.dmg` | Intel Mac |
 
