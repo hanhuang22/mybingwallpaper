@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdir, writeFile } from "node:fs/promises";
+import { readdir, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { buildUpdaterManifest } from "./updater-manifest.mjs";
@@ -55,15 +55,22 @@ async function uploadAttachment(releaseId, filePath) {
   const fileName = basename(filePath);
   const args = [
     "--silent", "--show-error", "--fail", "--location", "--http1.1",
-    "--connect-timeout", "30", "--max-time", "180",
-    "--retry", "4", "--retry-all-errors", "--retry-delay", "10",
+    "--connect-timeout", "20", "--max-time", "90",
+    "--retry", "2", "--retry-all-errors", "--retry-delay", "5",
+    "--write-out", "%{stderr}HTTP %{http_code}, sent %{size_upload} bytes in %{time_total}s\n",
+    "--header", `Authorization: Bearer ${token}`,
     "--form", `access_token=${token}`,
+    "--form", `owner=${owner}`,
+    "--form", `repo=${repo}`,
+    "--form", `release_id=${releaseId}`,
     "--form", `file=@${filePath};filename=${fileName}`,
     `${apiBase}/releases/${releaseId}/attach_files`,
   ];
   let output;
   try {
-    ({ stdout: output } = await execFileAsync("curl", args, { maxBuffer: 1024 * 1024 }));
+    const result = await execFileAsync("curl", args, { maxBuffer: 1024 * 1024 });
+    output = result.stdout;
+    console.log(`${fileName}: ${result.stderr.trim()}`);
   } catch (error) {
     // Do not include the command in logs: it contains the Gitee access token.
     throw new Error(`Gitee attachment upload failed for ${fileName} (curl exit ${error.code ?? "unknown"}): ${String(error.stderr ?? "").trim()}`);
@@ -101,7 +108,7 @@ const assets = (await readdir(assetDir, { withFileTypes: true }))
   .filter((entry) => entry.isFile())
   .map((entry) => join(assetDir, entry.name))
   .filter((asset) => basename(asset) !== "latest.json")
-  .sort();
+  .sort((a, b) => Number(b.endsWith(".sig")) - Number(a.endsWith(".sig")) || a.localeCompare(b));
 
 if (assets.length === 0) throw new Error(`No release assets found in ${assetDir}`);
 
@@ -131,21 +138,24 @@ if (release) {
   console.log(`Created Gitee release ${tag}`);
 }
 
-const localNames = new Set([...assets.map((asset) => basename(asset)), "latest.json"]);
 const existing =
   (await giteeRequest(`/releases/${release.id}/attach_files?per_page=100`)) ?? [];
-for (const attachment of existing) {
-  if (!localNames.has(attachment.name)) continue;
-  await giteeRequest(
-    `/releases/${release.id}/attach_files/${attachment.id}`,
-    { method: "DELETE" },
-  );
-  console.log(`Replaced existing attachment ${attachment.name}`);
-}
+const existingByName = new Map(existing.map((attachment) => [attachment.name, attachment]));
 
 const downloadUrls = new Map();
 for (const asset of assets) {
   const fileName = basename(asset);
+  const prior = existingByName.get(fileName);
+  if (prior && Number(prior.size) === (await stat(asset)).size && prior.browser_download_url) {
+    downloadUrls.set(fileName, prior.browser_download_url);
+    console.log(`Kept existing ${fileName}`);
+    continue;
+  }
+  if (prior) {
+    await giteeRequest(`/releases/${release.id}/attach_files/${prior.id}`, { method: "DELETE" });
+    console.log(`Removed outdated ${fileName}`);
+  }
+  console.log(`Uploading ${fileName}`);
   const attachment = await uploadAttachment(release.id, asset);
   downloadUrls.set(fileName, attachment.browser_download_url);
   console.log(`Uploaded ${fileName}`);
@@ -163,6 +173,11 @@ const updaterManifest = await buildUpdaterManifest({
 const updaterManifestPath = join(assetDir, "latest.json");
 const updaterManifestContents = `${JSON.stringify(updaterManifest, null, 2)}\n`;
 await writeFile(updaterManifestPath, updaterManifestContents);
+const existingManifest = existingByName.get("latest.json");
+if (existingManifest) {
+  await giteeRequest(`/releases/${release.id}/attach_files/${existingManifest.id}`, { method: "DELETE" });
+}
+console.log("Uploading latest.json");
 await uploadAttachment(release.id, updaterManifestPath);
 console.log("Uploaded Gitee updater manifest");
 
