@@ -9,7 +9,7 @@ export const updaterPlatforms = (tag) => ({
   "darwin-aarch64": `mybingwallpaper-${tag}-macos-apple-silicon.app.tar.gz`,
 });
 
-const legacyWindowsPlatforms = new Set(["windows-i686", "windows-aarch64"]);
+const legacyPlatforms = new Set(["windows-i686", "windows-aarch64", "darwin-x86_64"]);
 
 async function fileExists(path) {
   try {
@@ -30,7 +30,7 @@ export async function buildUpdaterManifest({ assetDir, tag, urlForAsset }) {
       fileExists(assetPath),
       fileExists(signaturePath),
     ]);
-    if (legacyWindowsPlatforms.has(platform) && !hasAsset && !hasSignature) continue;
+    if (legacyPlatforms.has(platform) && !hasAsset && !hasSignature) continue;
     if (!hasAsset || !hasSignature) {
       throw new Error(`Missing updater asset or signature for ${platform}: ${fileName}`);
     }

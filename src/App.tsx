@@ -95,7 +95,7 @@ function App() {
   const [saveDirectoryError, setSaveDirectoryError] = useState("");
   const [choosingSaveDirectory, setChoosingSaveDirectory] = useState(false);
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">("browser");
-  const [appVersion, setAppVersion] = useState("1.0.1");
+  const [appVersion, setAppVersion] = useState("1.0.2");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);

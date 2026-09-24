@@ -22,9 +22,9 @@ async function createAssets(tag, platforms) {
   return assetDir;
 }
 
-const currentPlatforms = ["windows-x86_64", "darwin-x86_64", "darwin-aarch64"];
+const currentPlatforms = ["windows-x86_64", "darwin-aarch64"];
 
-test("new releases only include Windows x64 and both macOS architectures", async () => {
+test("new releases only include Windows x64 and Apple Silicon macOS", async () => {
   const tag = "v1.0.2";
   const assetDir = await createAssets(tag, currentPlatforms);
   const manifest = await buildUpdaterManifest({
@@ -35,7 +35,7 @@ test("new releases only include Windows x64 and both macOS architectures", async
   expect(Object.keys(manifest.platforms)).toEqual(currentPlatforms);
 });
 
-test("repairing an older release retains its x86 and ARM64 updater entries", async () => {
+test("repairing an older release retains its legacy updater entries", async () => {
   const tag = "v1.0.1";
   const assetDir = await createAssets(tag, Object.keys(updaterPlatforms(tag)));
   const manifest = await buildUpdaterManifest({

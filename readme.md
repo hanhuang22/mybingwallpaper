@@ -7,7 +7,7 @@
 
 [项目网站](https://hanhuang22.github.io/mybingwallpaper/) · [GitHub 下载](https://github.com/hanhuang22/mybingwallpaper/releases) · [Gitee 国内下载](https://gitee.com/Hyman25/mybingwallpaper/releases)
 
-当前稳定版为 **v1.0.1**。桌面端支持跟随系统外观、历史年月快速选择、每日自动换壁纸，以及在应用内检查并下载签名校验的更新。以下截图来自 macOS 版 v1.0.0；Windows 版功能相同，系统控件外观可能略有差异。
+当前稳定版为 **v1.0.2**。桌面端支持跟随系统外观、历史年月快速选择、每日自动换壁纸，以及在应用内检查并下载签名校验的更新。以下截图来自 macOS 版 v1.0.0；Windows 版功能相同，系统控件外观可能略有差异。
 
 ## 界面预览
 
@@ -44,7 +44,7 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 
 ## 下载
 
-安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口。请在发布页选择与你的系统和处理器对应的 `.exe` 或 `.dmg`；`.sig`、`.app.tar.gz` 和 `latest.json` 是应用内自动更新所需文件，不是普通安装包。从下一次发布起，Windows 仅构建 x64 NSIS `.exe`，不再构建 MSI、x86 或 Windows ARM64；历史 Release 不受影响。
+安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口。请在发布页选择与你的系统和处理器对应的 `.exe` 或 `.dmg`；`.sig`、`.app.tar.gz` 和 `latest.json` 是应用内自动更新所需文件，不是普通安装包。从 v1.0.2 起，仅构建 Windows x64 NSIS `.exe` 和 macOS Apple Silicon `.dmg`，不再构建 MSI、Windows x86/ARM64 或 macOS Intel；历史 Release 不受影响。
 
 若此前使用 MSI 安装，切换到 NSIS `.exe` 时建议先卸载旧版 MSI，再安装新版，以免 Windows 的“已安装的应用”中留下重复记录。
 
@@ -52,11 +52,10 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 | --- | --- |
 | `mybingwallpaper-v<版本>-windows-x64-setup.exe` | Windows 10/11，Intel 或 AMD 64 位（推荐安装程序） |
 | `mybingwallpaper-v<版本>-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
-| `mybingwallpaper-v<版本>-macos-intel.dmg` | Intel Mac |
 
-Windows 11 ARM 设备可以通过系统模拟运行 x64 安装包。若此前安装了 Windows ARM64 原生版，切换到 x64 版请手动安装；不自动向 ARM64 原生版推送未经验证的跨架构更新。32 位 Windows 无法运行 x64 新版，仍可使用历史版本。
+Windows 11 ARM 设备可以通过系统模拟运行 x64 安装包。若此前安装了 Windows ARM64 原生版，切换到 x64 版请手动安装；不自动向 ARM64 原生版推送未经验证的跨架构更新。32 位 Windows 和 Intel Mac 无法运行对应的新版本，仍可使用历史版本。
 
-向 `main` 推送代码时，GitHub Actions 会验证上述三种目标能否构建。全部通过后，如果源码版本号一致且对应的 `v*` 标签尚不存在，工作流会自动创建标签、发布 GitHub Release，并将同一批安装包同步到 Gitee Release；已有标签不会重复发布。`updater` 分支只存放签名更新清单，由发布工作流维护，无需手动合并。也可以手动推送 `v*` 标签触发发布。v0.3.6 是支持应用内自动更新的起始版本，旧版本需要先手动安装一次 v0.3.6 或更高版本。更新包会经过独立签名校验，但这不等同于商业代码签名：Windows 仍可能显示 SmartScreen 提示，macOS 安装包也尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
+向 `main` 推送代码时，GitHub Actions 会验证上述两种目标能否构建。全部通过后，如果源码版本号一致且对应的 `v*` 标签尚不存在，工作流会自动创建标签、发布 GitHub Release，并将同一批安装包同步到 Gitee Release；已有标签不会重复发布。`updater` 分支只存放签名更新清单，由发布工作流维护，无需手动合并。也可以手动推送 `v*` 标签触发发布。v0.3.6 是支持应用内自动更新的起始版本，旧版本需要先手动安装一次 v0.3.6 或更高版本。更新包会经过独立签名校验，但这不等同于商业代码签名：Windows 仍可能显示 SmartScreen 提示，macOS 安装包也尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
 
 ## 技术结构
 
@@ -127,7 +126,7 @@ macOS 会生成 `.app`、带有拖动安装界面的 DMG，以及供应用内更
 
 生成安装包前需在环境变量中提供 Tauri 更新签名私钥与密码；只验证代码能否编译时可使用 `npm run tauri build -- --no-bundle`。更新公钥已经随客户端发布后不要随意更换，否则旧版本将无法验证后续更新。
 
-GitHub Actions 会构建 Windows x64，以及 macOS Intel 和 Apple Silicon。推送 `v*` 标签时，发布工作流会同时生成更新包签名和 `latest.json`，发布到 GitHub 后再通过加密的 Gitee API Token 同步到 Gitee，并维护国内可访问的更新清单。发布所需的 `GITEE_API_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 只存在于 GitHub Actions Secrets，不会进入源码或安装包；客户端仅包含用于验证签名的公钥。
+GitHub Actions 只构建 Windows x64 和 macOS Apple Silicon。推送 `v*` 标签时，发布工作流会同时生成更新包签名和 `latest.json`，发布到 GitHub 后再通过加密的 Gitee API Token 同步到 Gitee，并维护国内可访问的更新清单。发布所需的 `GITEE_API_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 只存在于 GitHub Actions Secrets，不会进入源码或安装包；客户端仅包含用于验证签名的公钥。
 
 ## 数据源
 
