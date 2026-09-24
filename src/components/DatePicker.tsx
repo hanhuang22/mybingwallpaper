@@ -10,6 +10,8 @@ interface DatePickerProps {
 }
 
 const weekdays = ["一", "二", "三", "四", "五", "六", "日"];
+const months = Array.from({ length: 12 }, (_, index) => index);
+type CalendarView = "days" | "months" | "years";
 
 function parseDate(value: string) {
   return new Date(`${value}T12:00:00`);
@@ -47,7 +49,9 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
   const maximumDate = useMemo(() => parseDate(maximum), [maximum]);
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(selectedDate);
+  const [calendarView, setCalendarView] = useState<CalendarView>("days");
   const rootRef = useRef<HTMLDivElement>(null);
+  const activeChoiceRef = useRef<HTMLButtonElement>(null);
   const calendarDays = useMemo(() => buildCalendar(viewDate), [viewDate]);
   const years = useMemo(
     () => Array.from(
@@ -58,8 +62,15 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
   );
 
   useEffect(() => {
-    if (!open) setViewDate(selectedDate);
+    if (!open) {
+      setViewDate(selectedDate);
+      setCalendarView("days");
+    }
   }, [open, selectedDate]);
+
+  useEffect(() => {
+    if (open) activeChoiceRef.current?.focus();
+  }, [open, calendarView]);
 
   useEffect(() => {
     if (!open) return;
@@ -88,10 +99,12 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
     const latestMonth = year === maximumDate.getFullYear() ? maximumDate.getMonth() : 11;
     const nextMonth = Math.min(Math.max(viewDate.getMonth(), earliestMonth), latestMonth);
     setViewDate(new Date(year, nextMonth, 1, 12));
+    setCalendarView("months");
   };
 
   const changeMonth = (month: number) => {
     setViewDate(new Date(viewDate.getFullYear(), month, 1, 12));
+    setCalendarView("days");
   };
 
   const selectDate = (date: Date) => {
@@ -101,8 +114,16 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
     setOpen(false);
   };
 
-  const previousDisabled = monthKey(viewDate) <= monthKey(minimumDate);
-  const nextDisabled = monthKey(viewDate) >= monthKey(maximumDate);
+  const previousDisabled = calendarView === "days"
+    ? monthKey(viewDate) <= monthKey(minimumDate)
+    : viewDate.getFullYear() <= minimumDate.getFullYear();
+  const nextDisabled = calendarView === "days"
+    ? monthKey(viewDate) >= monthKey(maximumDate)
+    : viewDate.getFullYear() >= maximumDate.getFullYear();
+  const firstAvailableDate = monthKey(viewDate) === monthKey(minimumDate)
+    ? minimumDate
+    : new Date(viewDate.getFullYear(), viewDate.getMonth(), 1, 12);
+  const focusDateKey = sameMonth(selectedDate, viewDate) ? value : formatDateKey(firstAvailableDate);
 
   return (
     <div className="date-picker" ref={rootRef}>
@@ -119,76 +140,138 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
       </button>
 
       {open && (
-        <div className="calendar-popover" role="dialog" aria-label="选择壁纸日期">
+        <div className="calendar-popover" role="dialog" aria-label="选择壁纸日期" data-view={calendarView}>
           <div className="calendar-heading">
             <button
               className="calendar-nav"
               type="button"
-              aria-label="上个月"
-              disabled={previousDisabled}
-              onClick={() => moveMonth(-1)}
+              aria-label={calendarView === "years" ? "返回日期" : calendarView === "months" ? "上一年" : "上个月"}
+              disabled={calendarView !== "years" && previousDisabled}
+              onClick={() => {
+                if (calendarView === "years") setCalendarView("days");
+                else if (calendarView === "months") changeYear(viewDate.getFullYear() - 1);
+                else moveMonth(-1);
+              }}
             >
               <ChevronLeft size={18} />
             </button>
             <div className="calendar-period">
-              <select
-                aria-label="选择年份"
-                value={viewDate.getFullYear()}
-                onChange={(event) => changeYear(Number(event.target.value))}
+              {calendarView === "years" ? (
+                <span className="calendar-period-label">选择年份</span>
+              ) : (
+                <>
+                  <button
+                    className="calendar-period-button"
+                    type="button"
+                    aria-label="选择年份"
+                    onClick={() => setCalendarView("years")}
+                  >
+                    {viewDate.getFullYear()}年
+                  </button>
+                  {calendarView === "days" ? (
+                    <button
+                      className="calendar-period-button"
+                      type="button"
+                      aria-label="选择月份"
+                      onClick={() => setCalendarView("months")}
+                    >
+                      {viewDate.getMonth() + 1}月
+                    </button>
+                  ) : (
+                    <span className="calendar-period-label">选择月份</span>
+                  )}
+                </>
+              )}
+            </div>
+            {calendarView === "years" ? (
+              <span className="calendar-nav-spacer" />
+            ) : (
+              <button
+                className="calendar-nav"
+                type="button"
+                aria-label={calendarView === "months" ? "下一年" : "下个月"}
+                disabled={nextDisabled}
+                onClick={() => {
+                  if (calendarView === "months") changeYear(viewDate.getFullYear() + 1);
+                  else moveMonth(1);
+                }}
               >
-                {years.map((year) => <option key={year} value={year}>{year}年</option>)}
-              </select>
-              <select
-                aria-label="选择月份"
-                value={viewDate.getMonth()}
-                onChange={(event) => changeMonth(Number(event.target.value))}
-              >
-                {Array.from({ length: 12 }, (_, month) => {
+                <ChevronRight size={18} />
+              </button>
+            )}
+          </div>
+
+          <div className="calendar-content">
+            {calendarView === "years" ? (
+              <div className="calendar-choice-grid years" role="group" aria-label="年份">
+                {years.map((year) => (
+                  <button
+                    className={`calendar-choice${year === viewDate.getFullYear() ? " selected" : ""}`}
+                    type="button"
+                    key={year}
+                    ref={year === viewDate.getFullYear() ? activeChoiceRef : undefined}
+                    aria-pressed={year === viewDate.getFullYear()}
+                    onClick={() => changeYear(year)}
+                  >
+                    {year}年
+                  </button>
+                ))}
+              </div>
+            ) : calendarView === "months" ? (
+              <div className="calendar-choice-grid months" role="group" aria-label="月份">
+                {months.map((month) => {
                   const key = viewDate.getFullYear() * 12 + month;
                   const disabled = key < monthKey(minimumDate) || key > monthKey(maximumDate);
-                  return <option key={month} value={month} disabled={disabled}>{month + 1}月</option>;
+                  const selected = month === viewDate.getMonth();
+                  return (
+                    <button
+                      className={`calendar-choice${selected ? " selected" : ""}`}
+                      type="button"
+                      key={month}
+                      ref={selected ? activeChoiceRef : undefined}
+                      disabled={disabled}
+                      aria-pressed={selected}
+                      onClick={() => changeMonth(month)}
+                    >
+                      {month + 1}月
+                    </button>
+                  );
                 })}
-              </select>
-            </div>
-            <button
-              className="calendar-nav"
-              type="button"
-              aria-label="下个月"
-              disabled={nextDisabled}
-              onClick={() => moveMonth(1)}
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
+              </div>
+            ) : (
+              <>
+                <div className="calendar-weekdays" aria-hidden="true">
+                  {weekdays.map((weekday) => <span key={weekday}>{weekday}</span>)}
+                </div>
+                <div className="calendar-grid">
+                  {calendarDays.map((date) => {
+                    const key = formatDateKey(date);
+                    const disabled = key < minimum || key > maximum;
+                    const selected = key === value;
+                    const outside = !sameMonth(date, viewDate);
+                    const isToday = key === maximum;
 
-          <div className="calendar-weekdays" aria-hidden="true">
-            {weekdays.map((weekday) => <span key={weekday}>{weekday}</span>)}
-          </div>
-          <div className="calendar-grid">
-            {calendarDays.map((date) => {
-              const key = formatDateKey(date);
-              const disabled = key < minimum || key > maximum;
-              const selected = key === value;
-              const outside = !sameMonth(date, viewDate);
-              const isToday = key === maximum;
-
-              return (
-                <button
-                  className={`calendar-day${outside ? " outside" : ""}${selected ? " selected" : ""}${isToday ? " today" : ""}`}
-                  type="button"
-                  key={key}
-                  disabled={disabled}
-                  aria-label={displayDate(key)}
-                  aria-pressed={selected}
-                  onClick={() => selectDate(date)}
-                >
-                  {date.getDate()}
-                </button>
-              );
-            })}
+                    return (
+                      <button
+                        className={`calendar-day${outside ? " outside" : ""}${selected ? " selected" : ""}${isToday ? " today" : ""}`}
+                        type="button"
+                        key={key}
+                        ref={key === focusDateKey ? activeChoiceRef : undefined}
+                        disabled={disabled}
+                        aria-label={displayDate(key)}
+                        aria-pressed={selected}
+                        onClick={() => selectDate(date)}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
           <div className="calendar-footer">
-            <span>可浏览 2010 年至今</span>
+            <span>可浏览 {minimumDate.getFullYear()} 年至今</span>
             {value !== maximum && (
               <button type="button" onClick={() => selectDate(maximumDate)}>回到今天</button>
             )}
