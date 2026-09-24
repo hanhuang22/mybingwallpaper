@@ -1,6 +1,10 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { readdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { promisify } from "node:util";
 import { buildUpdaterManifest } from "./updater-manifest.mjs";
+
+const execFileAsync = promisify(execFile);
 
 const required = (name) => {
   const value = process.env[name];
@@ -45,6 +49,35 @@ async function giteeRequest(path, options = {}) {
     throw new Error(`Gitee API ${method} ${path} failed (${response.status}): ${detail}`);
   }
   return data;
+}
+
+async function uploadAttachment(releaseId, filePath) {
+  const fileName = basename(filePath);
+  const args = [
+    "--silent", "--show-error", "--fail", "--location", "--http1.1",
+    "--connect-timeout", "30", "--max-time", "180",
+    "--retry", "4", "--retry-all-errors", "--retry-delay", "10",
+    "--form", `access_token=${token}`,
+    "--form", `file=@${filePath};filename=${fileName}`,
+    `${apiBase}/releases/${releaseId}/attach_files`,
+  ];
+  let output;
+  try {
+    ({ stdout: output } = await execFileAsync("curl", args, { maxBuffer: 1024 * 1024 }));
+  } catch (error) {
+    // Do not include the command in logs: it contains the Gitee access token.
+    throw new Error(`Gitee attachment upload failed for ${fileName} (curl exit ${error.code ?? "unknown"}): ${String(error.stderr ?? "").trim()}`);
+  }
+  let attachment;
+  try {
+    attachment = JSON.parse(output);
+  } catch {
+    throw new Error(`Gitee returned an invalid upload response for ${fileName}`);
+  }
+  if (!attachment?.browser_download_url) {
+    throw new Error(`Gitee did not return a public download URL for ${fileName}`);
+  }
+  return attachment;
 }
 
 async function githubReleaseBody() {
@@ -113,15 +146,7 @@ for (const attachment of existing) {
 const downloadUrls = new Map();
 for (const asset of assets) {
   const fileName = basename(asset);
-  const form = new FormData();
-  form.set("file", new Blob([await readFile(asset)]), fileName);
-  const attachment = await giteeRequest(`/releases/${release.id}/attach_files`, {
-    method: "POST",
-    body: form,
-  });
-  if (!attachment?.browser_download_url) {
-    throw new Error(`Gitee did not return a public download URL for ${fileName}`);
-  }
+  const attachment = await uploadAttachment(release.id, asset);
   downloadUrls.set(fileName, attachment.browser_download_url);
   console.log(`Uploaded ${fileName}`);
 }
@@ -138,12 +163,7 @@ const updaterManifest = await buildUpdaterManifest({
 const updaterManifestPath = join(assetDir, "latest.json");
 const updaterManifestContents = `${JSON.stringify(updaterManifest, null, 2)}\n`;
 await writeFile(updaterManifestPath, updaterManifestContents);
-const manifestForm = new FormData();
-manifestForm.set("file", new Blob([updaterManifestContents]), "latest.json");
-await giteeRequest(`/releases/${release.id}/attach_files`, {
-  method: "POST",
-  body: manifestForm,
-});
+await uploadAttachment(release.id, updaterManifestPath);
 console.log("Uploaded Gitee updater manifest");
 
 async function publishUpdaterBranch() {
