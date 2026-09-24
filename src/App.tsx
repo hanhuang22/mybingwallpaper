@@ -498,7 +498,16 @@ function App() {
   const showDetails = detailsExpanded || detailsHovered;
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}`}>
+      {wallpaper && (
+        <img
+          key={wallpaper.imageUrl}
+          className="ambient-photo"
+          src={wallpaper.imageUrl}
+          alt=""
+          aria-hidden="true"
+        />
+      )}
       <div className="ambient" aria-hidden="true" />
       <section className="wallpaper-stage" aria-busy={action === "loading"}>
         {wallpaper ? (

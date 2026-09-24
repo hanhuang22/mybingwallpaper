@@ -71,6 +71,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .app-shell {
   position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 16px;
@@ -78,6 +79,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 18px;
   overflow: hidden;
   background: var(--page-background);
+}
+
+.app-shell.has-wallpaper { background: var(--page-solid); }
+
+.ambient-photo {
+  position: absolute;
+  inset: -64px;
+  z-index: 0;
+  width: calc(100% + 128px);
+  height: calc(100% + 128px);
+  pointer-events: none;
+  object-fit: cover;
+  filter: blur(64px) saturate(.88);
+  opacity: .66;
+  animation: ambient-photo-in .5s ease both;
 }
 
 .ambient {
@@ -88,6 +104,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: conic-gradient(from 210deg, #4f86f7, #a855f7, #f97316, #4f86f7);
   animation: drift 18s ease-in-out infinite alternate;
 }
+
+.has-wallpaper .ambient { opacity: 0; animation: none; }
 
 .wallpaper-stage, .control-dock { position: relative; z-index: 1; }
 
@@ -541,6 +559,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes reveal { from { opacity: .2; } to { opacity: 1; } }
+@keyframes ambient-photo-in { from { opacity: 0; } to { opacity: .66; } }
 @keyframes slide-in { from { opacity: 0; transform: translateX(24px); } }
 @keyframes drift { from { transform: translate(-5%, -3%) rotate(-6deg); } to { transform: translate(6%, 4%) rotate(7deg); } }
 @keyframes calendar-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
