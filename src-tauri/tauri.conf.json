@@ -63,9 +63,6 @@
         "type": "downloadBootstrapper",
         "silent": true
       },
-      "wix": {
-        "language": "zh-CN"
-      },
       "nsis": {
         "languages": [
           "SimpChinese"

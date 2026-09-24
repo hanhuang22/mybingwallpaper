@@ -41,18 +41,16 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri build -- --target ${{ matrix.target }}
+        run: npm run tauri build -- --target ${{ matrix.target }} --bundles nsis
       - name: Prepare clearly named release assets
         shell: pwsh
         run: |
           $bundle = "src-tauri/target/${{ matrix.target }}/release/bundle"
           New-Item -ItemType Directory -Force release-assets | Out-Null
-          $msi = Get-ChildItem "$bundle/msi/*.msi" | Select-Object -First 1
           $exe = Get-ChildItem "$bundle/nsis/*-setup.exe" | Select-Object -First 1
-          if (-not $msi -or -not $exe) {
-            throw "Expected both MSI and NSIS installers for ${{ matrix.target }}"
+          if (-not $exe) {
+            throw "Expected NSIS installer for ${{ matrix.target }}"
           }
-          Copy-Item $msi.FullName "release-assets/mybingwallpaper-${{ github.ref_name }}-windows-${{ matrix.asset }}.msi"
           Copy-Item $exe.FullName "release-assets/mybingwallpaper-${{ github.ref_name }}-windows-${{ matrix.asset }}-setup.exe"
           $signature = "$($exe.FullName).sig"
           if (-not (Test-Path $signature)) {
@@ -135,11 +133,8 @@ jobs:
             | 文件名 | 适用系统 |
             | --- | --- |
             | `mybingwallpaper-${{ github.ref_name }}-windows-x64-setup.exe` | Windows 10/11，Intel 或 AMD 64 位（推荐安装程序） |
-            | `mybingwallpaper-${{ github.ref_name }}-windows-x64.msi` | Windows 10/11，Intel 或 AMD 64 位（MSI） |
             | `mybingwallpaper-${{ github.ref_name }}-windows-x86-setup.exe` | 32 位 Windows（安装程序） |
-            | `mybingwallpaper-${{ github.ref_name }}-windows-x86.msi` | 32 位 Windows（MSI） |
             | `mybingwallpaper-${{ github.ref_name }}-windows-arm64-setup.exe` | Windows on ARM（安装程序） |
-            | `mybingwallpaper-${{ github.ref_name }}-windows-arm64.msi` | Windows on ARM（MSI） |
             | `mybingwallpaper-${{ github.ref_name }}-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
             | `mybingwallpaper-${{ github.ref_name }}-macos-intel.dmg` | Intel Mac |
 

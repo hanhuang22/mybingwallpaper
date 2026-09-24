@@ -44,16 +44,15 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 
 ## 下载
 
-安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口。请在发布页选择与你的系统和处理器对应的 `.exe`、`.msi` 或 `.dmg`；`.sig`、`.app.tar.gz` 和 `latest.json` 是应用内自动更新所需文件，不是普通安装包。
+安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口。请在发布页选择与你的系统和处理器对应的 `.exe` 或 `.dmg`；`.sig`、`.app.tar.gz` 和 `latest.json` 是应用内自动更新所需文件，不是普通安装包。从下一次发布起不再构建 MSI，历史 Release 中的 MSI 不受影响。
+
+若此前使用 MSI 安装，切换到 NSIS `.exe` 时建议先卸载旧版 MSI，再安装新版，以免 Windows 的“已安装的应用”中留下重复记录。
 
 | 文件名格式 | 适用系统 |
 | --- | --- |
 | `mybingwallpaper-v<版本>-windows-x64-setup.exe` | Windows 10/11，Intel 或 AMD 64 位（推荐安装程序） |
-| `mybingwallpaper-v<版本>-windows-x64.msi` | Windows 10/11，Intel 或 AMD 64 位（MSI） |
 | `mybingwallpaper-v<版本>-windows-x86-setup.exe` | 32 位 Windows（安装程序） |
-| `mybingwallpaper-v<版本>-windows-x86.msi` | 32 位 Windows（MSI） |
 | `mybingwallpaper-v<版本>-windows-arm64-setup.exe` | Windows on ARM（安装程序） |
-| `mybingwallpaper-v<版本>-windows-arm64.msi` | Windows on ARM（MSI） |
 | `mybingwallpaper-v<版本>-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
 | `mybingwallpaper-v<版本>-macos-intel.dmg` | Intel Mac |
 
@@ -94,7 +93,6 @@ npm run dev
 2. 通过 rustup 安装 stable MSVC 工具链。
 3. 安装 Visual Studio Build Tools 的“使用 C++ 的桌面开发”、Windows 10/11 SDK 和 WebView2 Runtime。
 4. 构建 ARM64 时额外安装“适用于 ARM64 的 MSVC C++ 生成工具”和 LLVM/Clang。当前依赖中的 `ring` 在 Windows ARM64 目标上需要 `clang.exe`。
-5. 构建 MSI 时确保 Windows 可选功能 VBSCRIPT 已启用。
 
 安装 Rust 编译目标：
 
@@ -112,7 +110,7 @@ rustup target add aarch64-pc-windows-msvc
 | x86 | `i686-pc-windows-msvc` | 仍需兼容的 32 位 Windows |
 | ARM64 | `aarch64-pc-windows-msvc` | ARM Windows 原生版本，ARM 设备优先使用 |
 
-当前在 Windows ARM64 主机上已验证三种目标都能完成 EXE、MSI 和 NSIS 打包。x64/x86 构建使用 Windows 的跨架构工具链；这不代表产物是 ARM64，最终架构由 `--target` 决定。
+当前在 Windows ARM64 主机上已验证三种目标都能完成 NSIS `.exe` 打包。x64/x86 构建使用 Windows 的跨架构工具链；这不代表产物是 ARM64，最终架构由 `--target` 决定。
 
 ```powershell
 npm ci
@@ -132,7 +130,6 @@ npm run tauri build -- --target aarch64-pc-windows-msvc
 
 ```text
 src-tauri/target/<target>/release/my-bing-wallpaper.exe
-src-tauri/target/<target>/release/bundle/msi/*.msi
 src-tauri/target/<target>/release/bundle/nsis/*-setup.exe
 ```
 

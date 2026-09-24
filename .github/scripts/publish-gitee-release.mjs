@@ -56,7 +56,7 @@ async function uploadAttachment(releaseId, filePath) {
   const args = [
     "--silent", "--show-error", "--fail", "--location", "--http1.1",
     "--connect-timeout", "20", "--max-time", "900",
-    "--retry", "1", "--retry-all-errors", "--retry-delay", "10",
+    "--retry", "2", "--retry-all-errors", "--retry-delay", "15",
     "--write-out", "%{stderr}HTTP %{http_code}, sent %{size_upload} bytes in %{time_total}s\n",
     "--header", `Authorization: Bearer ${token}`,
     "--form", `access_token=${token}`,
@@ -72,6 +72,19 @@ async function uploadAttachment(releaseId, filePath) {
     output = result.stdout;
     console.log(`${fileName}: ${result.stderr.trim()}`);
   } catch (error) {
+    // Gitee can accept a file and then close the connection before curl receives
+    // its response. Reuse that attachment instead of failing or uploading it twice.
+    const existing = await giteeRequest(`/releases/${releaseId}/attach_files?per_page=100`);
+    const fileSize = (await stat(filePath)).size;
+    const recovered = existing?.find((attachment) =>
+      attachment.name === fileName &&
+      Number(attachment.size) === fileSize &&
+      attachment.browser_download_url,
+    );
+    if (recovered) {
+      console.log(`Recovered uploaded ${fileName} after a dropped response`);
+      return recovered;
+    }
     // Do not include the command in logs: it contains the Gitee access token.
     throw new Error(`Gitee attachment upload failed for ${fileName} (curl exit ${error.code ?? "unknown"}): ${String(error.stderr ?? "").trim()}`);
   }
@@ -107,7 +120,7 @@ async function githubReleaseBody() {
 const assetPaths = (await readdir(assetDir, { withFileTypes: true }))
   .filter((entry) => entry.isFile())
   .map((entry) => join(assetDir, entry.name))
-  .filter((asset) => basename(asset) !== "latest.json");
+  .filter((asset) => basename(asset) !== "latest.json" && !asset.endsWith(".msi"));
 const assets = (await Promise.all(assetPaths.map(async (path) => ({
   path,
   size: (await stat(path)).size,
@@ -166,7 +179,7 @@ async function publishAsset(asset) {
   console.log(`Uploaded ${fileName}`);
 }
 
-const uploadConcurrency = Number(process.env.GITEE_UPLOAD_CONCURRENCY ?? "3");
+const uploadConcurrency = Number(process.env.GITEE_UPLOAD_CONCURRENCY ?? "2");
 if (!Number.isInteger(uploadConcurrency) || uploadConcurrency < 1 || uploadConcurrency > 5) {
   throw new Error("GITEE_UPLOAD_CONCURRENCY must be an integer from 1 to 5");
 }
