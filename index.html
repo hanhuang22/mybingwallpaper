@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f4f1e9" />
     <meta
       name="description"
-      content="必应壁纸是一款面向 Windows 与 macOS 的开源桌面壁纸应用，支持每日更新、历史浏览与自动更换。"
+      content="必应壁纸 v1.0.0 是一款面向 Windows 与 macOS 的开源桌面应用，支持每日自动更新、历史浏览、原图保存与应用内更新。"
     />
     <meta property="og:title" content="必应壁纸 · 每天一张好风景" />
     <meta
@@ -15,11 +15,10 @@
     />
     <meta
       property="og:image"
-      content="https://raw.githubusercontent.com/hanhuang22/mybingwallpaper/main/docs/screenshots/main.png"
+      content="https://hanhuang22.github.io/mybingwallpaper/docs/screenshots/main.png"
     />
     <title>必应壁纸 · 每天一张好风景</title>
     <link rel="preconnect" href="https://cn.bing.com" />
-    <link rel="preconnect" href="https://raw.githubusercontent.com" />
     <link rel="stylesheet" href="assets/site.css" />
     <script src="assets/site.js" defer></script>
   </head>
@@ -37,6 +36,7 @@
       <nav aria-label="主导航">
         <a href="#features">功能</a>
         <a href="#gallery">壁纸</a>
+        <a href="#download">下载</a>
         <a href="https://github.com/hanhuang22/mybingwallpaper" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
       <a
@@ -53,7 +53,7 @@
           <h1>每天一张好风景，<br /><em>让桌面自然焕新。</em></h1>
           <p>
             一款开源、轻量的桌面壁纸应用。浏览每日精选，回看历史风景，
-            也可以让它每天安静地自动更新。
+            也可以让它每天安静地自动更新。现已支持 Windows 与 macOS。
           </p>
           <div class="hero-actions">
             <a
@@ -61,11 +61,11 @@
               data-release-link
               data-smart-download
               href="https://github.com/hanhuang22/mybingwallpaper/releases/latest"
-            >下载最新版</a>
-            <a class="button button-secondary" href="#gallery">浏览壁纸</a>
+            >GitHub 下载</a>
+            <a class="button button-secondary" href="https://gitee.com/Hyman25/mybingwallpaper/releases" target="_blank" rel="noreferrer">Gitee 国内下载</a>
           </div>
           <div class="release-note">
-            <span data-release-version>最新版</span>
+            <span data-release-version>v1.0.0</span>
             <span aria-hidden="true">·</span>
             <span>免费开源</span>
             <span aria-hidden="true">·</span>
@@ -76,13 +76,9 @@
         <div class="hero-visual" aria-label="必应壁纸应用界面预览">
           <div class="visual-glow"></div>
           <div class="window-frame">
-            <div class="window-bar">
-              <div class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></div>
-              <span>必应壁纸</span>
-            </div>
             <img
-              src="https://raw.githubusercontent.com/hanhuang22/mybingwallpaper/main/docs/screenshots/main.png"
-              alt="必应壁纸应用主界面"
+              src="docs/screenshots/main.png"
+              alt="必应壁纸 v1.0.0 的 macOS 主界面"
             />
           </div>
           <div class="floating-card floating-card-top">
@@ -105,12 +101,12 @@
         <article>
           <span class="feature-number">02</span>
           <h2>历史浏览</h2>
-          <p>用中文日期选择器回到任意一天，或随机发现一张错过的风景。</p>
+          <p>通过年份网格、月份和日期回到任意一天，或随机发现一张错过的风景。</p>
         </article>
         <article>
           <span class="feature-number">03</span>
           <h2>原图品质</h2>
-          <p>预览并下载原始分辨率图片，在 Windows 与 macOS 上一键设置。</p>
+          <p>原图可保存到自选文件夹，在 Windows 与 macOS 上一键设置为桌面壁纸。</p>
         </article>
       </section>
 
@@ -139,12 +135,12 @@
         </div>
       </section>
 
-      <section class="download-section section-shell">
+      <section class="download-section section-shell" id="download">
         <div class="download-card">
           <div>
             <span class="section-kicker">DESKTOP APP</span>
             <h2>下一张好风景，交给它。</h2>
-            <p>下载适用于 Windows 与 macOS 的桌面应用，所有核心代码均已开源。</p>
+            <p>从 GitHub 或 Gitee 下载适用于 Windows 与 macOS 的安装包。请选择与你的系统和处理器对应的文件；<code>.sig</code>、<code>.app.tar.gz</code> 和 <code>latest.json</code> 用于应用内更新，无需手动下载。</p>
           </div>
           <div class="download-actions">
             <a
@@ -152,13 +148,13 @@
               data-release-link
               data-smart-download
               href="https://github.com/hanhuang22/mybingwallpaper/releases/latest"
-            >下载最新版</a>
+            >GitHub 下载</a>
             <a
               class="button button-ghost"
-              href="https://github.com/hanhuang22/mybingwallpaper"
+              href="https://gitee.com/Hyman25/mybingwallpaper/releases"
               target="_blank"
               rel="noreferrer"
-            >查看源代码</a>
+            >Gitee 国内下载</a>
           </div>
         </div>
       </section>

@@ -12,9 +12,9 @@ const status = document.querySelector("#gallery-status");
 
 function setSmartDownloadText() {
   const platform = navigator.userAgent.toLowerCase();
-  let label = "下载最新版";
-  if (platform.includes("mac")) label = "下载 macOS 版";
-  if (platform.includes("win")) label = "下载 Windows 版";
+  let label = "GitHub 下载";
+  if (platform.includes("mac")) label = "GitHub 下载 macOS 版";
+  if (platform.includes("win")) label = "GitHub 下载 Windows 版";
   document.querySelectorAll("[data-smart-download]").forEach((link) => {
     link.textContent = label;
   });
