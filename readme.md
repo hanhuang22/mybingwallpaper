@@ -5,7 +5,9 @@
 
 每天从必应壁纸档案中挑选、预览和应用桌面壁纸。应用使用 Tauri 2、React、TypeScript 与 Rust，支持 Windows 和 macOS。
 
-[官方网站](https://hanhuang22.github.io/mybingwallpaper/) · [GitHub 下载](https://github.com/hanhuang22/mybingwallpaper/releases) · [Gitee 国内下载](https://gitee.com/Hyman25/mybingwallpaper/releases)
+[项目网站](https://hanhuang22.github.io/mybingwallpaper/) · [GitHub 下载](https://github.com/hanhuang22/mybingwallpaper/releases) · [Gitee 国内下载](https://gitee.com/Hyman25/mybingwallpaper/releases)
+
+当前稳定版为 **v1.0.0**。桌面端支持跟随系统外观、历史年月快速选择、每日自动换壁纸，以及在应用内检查并下载签名校验的更新。以下截图来自 macOS 版 v1.0.0；Windows 版功能相同，系统控件外观可能略有差异。
 
 ## 界面预览
 
@@ -13,12 +15,12 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/calendar.png" alt="中文日期选择器"></td>
-    <td width="50%"><img src="docs/screenshots/settings.png" alt="自动更新与开机启动设置"></td>
+    <td width="50%"><img src="docs/screenshots/calendar.png" alt="年份网格选择器"></td>
+    <td width="50%"><img src="docs/screenshots/settings.png" alt="外观、自动更新与保存位置设置"></td>
   </tr>
   <tr>
-    <td align="center">中文日期选择与历史壁纸浏览</td>
-    <td align="center">自动更新与登录启动设置</td>
+    <td align="center">按年份、月份和日期浏览历史壁纸</td>
+    <td align="center">外观、保存位置与自动更新设置</td>
   </tr>
 </table>
 
@@ -42,7 +44,7 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 
 ## 下载
 
-安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口：
+安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口。请在发布页选择与你的系统和处理器对应的 `.exe`、`.msi` 或 `.dmg`；`.sig`、`.app.tar.gz` 和 `latest.json` 是应用内自动更新所需文件，不是普通安装包。
 
 | 文件名格式 | 适用系统 |
 | --- | --- |
