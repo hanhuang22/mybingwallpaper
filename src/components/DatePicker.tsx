@@ -210,10 +210,11 @@ export function DatePicker({ value, minimum, maximum, onChange }: DatePickerProp
                     type="button"
                     key={year}
                     ref={year === viewDate.getFullYear() ? activeChoiceRef : undefined}
+                    aria-label={`${year}年`}
                     aria-pressed={year === viewDate.getFullYear()}
                     onClick={() => changeYear(year)}
                   >
-                    {year}年
+                    {year}
                   </button>
                 ))}
               </div>
