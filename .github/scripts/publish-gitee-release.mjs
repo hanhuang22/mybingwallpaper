@@ -148,13 +148,13 @@ const existing =
 const existingByName = new Map(existing.map((attachment) => [attachment.name, attachment]));
 
 const downloadUrls = new Map();
-for (const asset of assets) {
+async function publishAsset(asset) {
   const fileName = basename(asset);
   const prior = existingByName.get(fileName);
   if (prior && Number(prior.size) === (await stat(asset)).size && prior.browser_download_url) {
     downloadUrls.set(fileName, prior.browser_download_url);
     console.log(`Kept existing ${fileName}`);
-    continue;
+    return;
   }
   if (prior) {
     await giteeRequest(`/releases/${release.id}/attach_files/${prior.id}`, { method: "DELETE" });
@@ -165,6 +165,24 @@ for (const asset of assets) {
   downloadUrls.set(fileName, attachment.browser_download_url);
   console.log(`Uploaded ${fileName}`);
 }
+
+const uploadConcurrency = Number(process.env.GITEE_UPLOAD_CONCURRENCY ?? "3");
+if (!Number.isInteger(uploadConcurrency) || uploadConcurrency < 1 || uploadConcurrency > 5) {
+  throw new Error("GITEE_UPLOAD_CONCURRENCY must be an integer from 1 to 5");
+}
+console.log(`Synchronizing ${assets.length} assets with ${uploadConcurrency} upload workers`);
+let nextAssetIndex = 0;
+const worker = async () => {
+  while (nextAssetIndex < assets.length) {
+    const asset = assets[nextAssetIndex++];
+    await publishAsset(asset);
+  }
+};
+const uploadResults = await Promise.allSettled(
+  Array.from({ length: Math.min(uploadConcurrency, assets.length) }, worker),
+);
+const uploadFailure = uploadResults.find((result) => result.status === "rejected");
+if (uploadFailure) throw uploadFailure.reason;
 
 const updaterManifest = await buildUpdaterManifest({
   assetDir,
