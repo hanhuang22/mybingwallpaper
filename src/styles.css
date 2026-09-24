@@ -413,6 +413,10 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .setting-row span { display: grid; gap: 5px; }
 .setting-row strong { font-size: 14px; }
 .setting-row small { color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.setting-row .setting-text { min-width: 0; }
+.setting-row .setting-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setting-row .setting-error { color: #dc6565; font-size: 12px; font-style: normal; line-height: 1.45; overflow-wrap: anywhere; }
+.setting-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
 .setting-row.disabled { opacity: .52; }
 .setting-row input[role="switch"] { appearance: none; width: 42px; height: 24px; flex: 0 0 auto; padding: 3px; border-radius: 999px; background: var(--surface-soft-hover); transition: background .2s ease; }
 .setting-row input[role="switch"]::before { content: ""; display: block; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s ease; }

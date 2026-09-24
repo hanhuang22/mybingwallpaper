@@ -17,6 +17,7 @@ use tauri::{
     Emitter, Manager, Runtime, State, WindowEvent,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::{Update, UpdaterExt};
 use url::Url;
@@ -91,6 +92,13 @@ struct Settings {
     lock_screen: bool,
     auto_download_updates: bool,
     theme: String,
+    #[serde(default = "default_true")]
+    save_without_prompt: bool,
+    save_directory: Option<PathBuf>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Settings {
@@ -101,6 +109,8 @@ impl Default for Settings {
             lock_screen: false,
             auto_download_updates: true,
             theme: "system".to_string(),
+            save_without_prompt: true,
+            save_directory: None,
         }
     }
 }
@@ -286,6 +296,25 @@ fn write_settings(path: &Path, settings: &Settings) -> Result<(), String> {
     fs::write(path, contents).map_err(|error| format!("配置保存失败：{error}"))
 }
 
+fn effective_save_directory(settings: &Settings) -> Result<PathBuf, String> {
+    if let Some(path) = &settings.save_directory {
+        return Ok(path.clone());
+    }
+    dirs::picture_dir()
+        .map(|path| path.join("MyBingWallpaper"))
+        .ok_or_else(|| "无法定位系统图片目录，请先在设置中选择原图保存位置".to_string())
+}
+
+fn dialog_directory(preferred: &Path) -> Result<PathBuf, String> {
+    if preferred.is_dir() {
+        return Ok(preferred.to_path_buf());
+    }
+    if let Some(parent) = preferred.parent().filter(|parent| parent.is_dir()) {
+        return Ok(parent.to_path_buf());
+    }
+    dirs::home_dir().ok_or_else(|| "无法定位可选的文件夹".to_string())
+}
+
 fn should_reapply_cached_wallpaper(
     last_auto_update: Option<&str>,
     today: &str,
@@ -390,16 +419,49 @@ async fn apply_wallpaper(
 }
 
 #[tauri::command]
-async fn save_wallpaper(
+async fn save_wallpaper<R: Runtime>(
+    app: tauri::AppHandle<R>,
     image_url: String,
     date: String,
     state: State<'_, AppState>,
-) -> Result<String, String> {
+) -> Result<Option<String>, String> {
     let date = validate_date(&date)?;
-    let pictures = dirs::picture_dir().ok_or_else(|| "无法定位系统图片目录".to_string())?;
-    let destination = pictures.join("MyBingWallpaper").join(format!("{date}.jpg"));
+    let settings = read_settings(&state.config_path);
+    let save_directory = effective_save_directory(&settings)?;
+    if settings.save_without_prompt {
+        if settings.save_directory.is_some() && !save_directory.is_dir() {
+            return Err("所选保存目录已不可用，请在设置中重新选择".to_string());
+        }
+        let destination = save_directory.join(format!("{date}.jpg"));
+        download_image(&state.client, &image_url, &destination).await?;
+        return Ok(Some(destination.to_string_lossy().into_owned()));
+    }
+    let suggested_folder = dialog_directory(&save_directory)?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "无法找到应用窗口".to_string())?;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_parent(&window)
+        .set_title("保存原图")
+        .set_directory(suggested_folder)
+        .set_file_name(format!("{date}.jpg"))
+        .add_filter("JPEG 图片", &["jpg", "jpeg"])
+        .save_file(move |selection| {
+            let _ = sender.send(selection);
+        });
+    let Some(destination) = receiver
+        .await
+        .map_err(|_| "无法获取所选保存位置".to_string())?
+    else {
+        return Ok(None);
+    };
+    let destination = destination
+        .into_path()
+        .map_err(|error| format!("无法读取保存位置：{error}"))?;
     download_image(&state.client, &image_url, &destination).await?;
-    Ok(destination.to_string_lossy().into_owned())
+    Ok(Some(destination.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
@@ -526,18 +588,79 @@ fn open_external<R: Runtime>(app: tauri::AppHandle<R>, url: String) -> Result<()
 }
 
 #[tauri::command]
-fn open_wallpaper_folder<R: Runtime>(
+fn open_wallpaper_cache<R: Runtime>(
     app: tauri::AppHandle<R>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     fs::create_dir_all(&state.wallpaper_cache)
-        .map_err(|error| format!("无法创建壁纸目录：{error}"))?;
+        .map_err(|error| format!("无法创建壁纸缓存目录：{error}"))?;
     app.opener()
         .open_path(
             state.wallpaper_cache.to_string_lossy().into_owned(),
             None::<&str>,
         )
-        .map_err(|error| format!("无法打开壁纸目录：{error}"))
+        .map_err(|error| format!("无法打开壁纸缓存目录：{error}"))
+}
+
+#[tauri::command]
+fn get_save_directory(state: State<'_, AppState>) -> Result<String, String> {
+    let settings = read_settings(&state.config_path);
+    effective_save_directory(&settings).map(|path| path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn open_save_directory<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let settings = read_settings(&state.config_path);
+    let directory = effective_save_directory(&settings)?;
+    if settings.save_directory.is_some() && !directory.is_dir() {
+        return Err("所选保存目录已不可用，请在设置中重新选择".to_string());
+    }
+    fs::create_dir_all(&directory).map_err(|error| format!("无法创建原图保存目录：{error}"))?;
+    app.opener()
+        .open_path(directory.to_string_lossy().into_owned(), None::<&str>)
+        .map_err(|error| format!("无法打开原图保存目录：{error}"))
+}
+
+#[tauri::command]
+async fn choose_save_directory<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
+    let settings = read_settings(&state.config_path);
+    let current = effective_save_directory(&settings)
+        .or_else(|_| dirs::home_dir().ok_or_else(|| "无法定位可选的文件夹".to_string()))?;
+    let suggested_folder = dialog_directory(&current)?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "无法找到应用窗口".to_string())?;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_parent(&window)
+        .set_title("选择原图保存位置")
+        .set_directory(suggested_folder)
+        .pick_folder(move |selection| {
+            let _ = sender.send(selection);
+        });
+    let Some(folder) = receiver
+        .await
+        .map_err(|_| "无法获取所选文件夹".to_string())?
+    else {
+        return Ok(None);
+    };
+    let folder = folder
+        .into_path()
+        .map_err(|error| format!("无法读取所选文件夹：{error}"))?;
+    if !folder.is_dir() {
+        return Err("所选保存位置不是文件夹".to_string());
+    }
+    let mut settings = read_settings(&state.config_path);
+    settings.save_directory = Some(folder.clone());
+    write_settings(&state.config_path, &settings)?;
+    Ok(Some(folder.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
@@ -550,7 +673,7 @@ fn load_settings<R: Runtime>(app: tauri::AppHandle<R>, state: State<'_, AppState
 #[tauri::command]
 fn save_settings<R: Runtime>(
     app: tauri::AppHandle<R>,
-    settings: Settings,
+    mut settings: Settings,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let autostart = app.autolaunch();
@@ -568,6 +691,7 @@ fn save_settings<R: Runtime>(
                 .map_err(|error| format!("无法关闭开机启动：{error}"))?;
         }
     }
+    settings.save_directory = read_settings(&state.config_path).save_directory;
     write_settings(&state.config_path, &settings)?;
     if settings.auto_update {
         let handle = app.clone();
@@ -693,6 +817,7 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
@@ -784,7 +909,10 @@ pub fn run() {
             prepare_software_update,
             install_software_update,
             open_external,
-            open_wallpaper_folder
+            open_wallpaper_cache,
+            get_save_directory,
+            open_save_directory,
+            choose_save_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running My Bing Wallpaper");
@@ -792,7 +920,10 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_version, should_reapply_cached_wallpaper, trusted_external_url, Settings};
+    use super::{
+        effective_save_directory, parse_version, should_reapply_cached_wallpaper,
+        trusted_external_url, Settings,
+    };
 
     #[test]
     fn reuses_todays_cached_wallpaper_for_a_refresh() {
@@ -838,5 +969,19 @@ mod tests {
                 .unwrap();
         assert!(settings.auto_download_updates);
         assert_eq!(settings.theme, "system");
+        assert!(settings.save_without_prompt);
+        assert!(settings.save_directory.is_none());
+    }
+
+    #[test]
+    fn keeps_the_selected_save_directory() {
+        let directory = std::env::temp_dir().join("wallpaper-saves");
+        let settings: Settings = serde_json::from_value(serde_json::json!({
+            "saveWithoutPrompt": false,
+            "saveDirectory": directory,
+        }))
+        .unwrap();
+        assert!(!settings.save_without_prompt);
+        assert_eq!(effective_save_directory(&settings).unwrap(), directory);
     }
 }

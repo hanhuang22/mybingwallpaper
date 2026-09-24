@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Download,
   ExternalLink,
+  Folder,
   FolderOpen,
   Globe2,
   ImageIcon,
@@ -61,6 +62,13 @@ function friendlyDate(date: string) {
   }).format(new Date(`${date}T12:00:00`));
 }
 
+function compactDirectory(path: string) {
+  if (path.length <= 32) return path;
+  const separator = path.includes("\\") ? "\\" : "/";
+  const segments = path.split(separator).filter(Boolean);
+  return segments.length > 2 ? `…${separator}${segments.slice(-2).join(separator)}` : path;
+}
+
 async function getWallpaper(date: string): Promise<Wallpaper> {
   if (isTauri()) {
     return invoke<Wallpaper>("get_wallpaper", { date });
@@ -81,6 +89,9 @@ function App() {
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [detailsHovered, setDetailsHovered] = useState(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [saveDirectory, setSaveDirectory] = useState("");
+  const [saveDirectoryError, setSaveDirectoryError] = useState("");
+  const [choosingSaveDirectory, setChoosingSaveDirectory] = useState(false);
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">("browser");
   const [appVersion, setAppVersion] = useState("0.3.6");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -229,10 +240,12 @@ function App() {
 
     void Promise.all([
       invoke<Settings>("load_settings"),
+      invoke<string>("get_save_directory").catch(() => "无法读取默认图片目录"),
       invoke<"windows" | "macos">("get_platform"),
       invoke<string>("get_app_version"),
-    ]).then(([saved, currentPlatform, currentVersion]) => {
+    ]).then(([saved, directory, currentPlatform, currentVersion]) => {
       setSettings(saved);
+      setSaveDirectory(directory);
       setPlatform(currentPlatform);
       setAppVersion(currentVersion);
     });
@@ -343,14 +356,18 @@ function App() {
     }
     setAction("saving");
     setError("");
-    setMessage("正在保存原图…");
+    setMessage(settings.saveWithoutPrompt ? "正在保存原图…" : "请选择保存位置…");
     try {
-      const path = await invoke<string>("save_wallpaper", {
+      const path = await invoke<string | null>("save_wallpaper", {
         imageUrl: wallpaper.imageUrl,
         date: selectedDate,
       });
-      setMessage(`已保存到 ${path}`);
-      window.setTimeout(() => setMessage(""), 4500);
+      if (path) {
+        setMessage(`已保存到 ${path}`);
+        window.setTimeout(() => setMessage(""), 4500);
+      } else {
+        setMessage("");
+      }
     } catch (reason) {
       setError(`保存失败：${reason instanceof Error ? reason.message : String(reason)}`);
       setMessage("");
@@ -371,15 +388,39 @@ function App() {
     }
   };
 
-  const openWallpaperFolder = async () => {
+  const openWallpaperCache = async () => {
     if (!isTauri()) {
-      setError("请在桌面应用中打开本地壁纸目录");
+      setError("请在桌面应用中打开壁纸缓存目录");
       return;
     }
     try {
-      await invoke("open_wallpaper_folder");
+      await invoke("open_wallpaper_cache");
     } catch (reason) {
-      setError(`打开目录失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      setError(`打开缓存目录失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
+
+  const chooseSaveDirectory = async () => {
+    if (!isTauri()) return;
+    setChoosingSaveDirectory(true);
+    setSaveDirectoryError("");
+    try {
+      const directory = await invoke<string | null>("choose_save_directory");
+      if (directory) setSaveDirectory(directory);
+    } catch (reason) {
+      setSaveDirectoryError(`更改失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      setChoosingSaveDirectory(false);
+    }
+  };
+
+  const openSaveDirectory = async () => {
+    if (!isTauri()) return;
+    setSaveDirectoryError("");
+    try {
+      await invoke("open_save_directory");
+    } catch (reason) {
+      setSaveDirectoryError(`打开失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
 
@@ -528,7 +569,7 @@ function App() {
           <button className="button secondary" type="button" disabled={!wallpaper || Boolean(action)} onClick={() => setSelectedDate(randomDate())}>
             <Shuffle size={17} /> 随机一张
           </button>
-          <button className="button secondary" type="button" disabled={!wallpaper || Boolean(action)} onClick={saveWallpaper}>
+          <button className="button secondary" type="button" title={settings.saveWithoutPrompt ? "保存到设置中的原图保存位置" : "选择位置和文件名后保存"} disabled={!wallpaper || Boolean(action)} onClick={saveWallpaper}>
             <Download size={17} /> 保存原图
           </button>
           <button className="button primary" type="button" disabled={!wallpaper || Boolean(action)} onClick={applyWallpaper}>
@@ -587,9 +628,28 @@ function App() {
                 </div>
               </div>
               <div className="setting-row setting-action-row">
-                <span><strong>本地壁纸</strong><small>查看自动下载和已经应用过的壁纸</small></span>
-                <button className="settings-action" type="button" onClick={openWallpaperFolder}>
-                  <FolderOpen size={16} />打开目录
+                <span className="setting-text">
+                  <strong>原图保存位置</strong>
+                  <small className="setting-path" title={saveDirectory}>{isTauri() ? (saveDirectory ? compactDirectory(saveDirectory) : "正在读取保存位置…") : "仅桌面应用可设置"}</small>
+                  {saveDirectoryError && <em className="setting-error" role="alert">{saveDirectoryError}</em>}
+                </span>
+                <div className="setting-actions">
+                  <button className="settings-action" type="button" title="打开原图保存目录" disabled={!isTauri() || choosingSaveDirectory} onClick={() => void openSaveDirectory()}>
+                    <FolderOpen size={16} />打开
+                  </button>
+                  <button className="settings-action" type="button" title="更改原图保存位置" disabled={!isTauri() || choosingSaveDirectory} onClick={() => void chooseSaveDirectory()}>
+                    {choosingSaveDirectory ? <LoaderCircle className="spin" size={16} /> : <Folder size={16} />}更改
+                  </button>
+                </div>
+              </div>
+              <label className="setting-row">
+                <span><strong>直接保存到此位置</strong><small>关闭后，每次保存原图都会询问位置和文件名</small></span>
+                <input type="checkbox" role="switch" checked={settings.saveWithoutPrompt} onChange={(event) => void updateSettings({ saveWithoutPrompt: event.target.checked })} />
+              </label>
+              <div className="setting-row setting-action-row">
+                <span><strong>壁纸缓存</strong><small>仅供自动更新和设为壁纸使用，与原图保存位置分开</small></span>
+                <button className="settings-action" type="button" onClick={openWallpaperCache}>
+                  <FolderOpen size={16} />打开缓存
                 </button>
               </div>
               <div className="setting-row setting-action-row">
