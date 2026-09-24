@@ -809,12 +809,14 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
                 if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.emit("main-window-reset-view", ());
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
             }
             "today" => {
                 if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.emit("main-window-reset-view", ());
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
@@ -911,6 +913,7 @@ pub fn run() {
                     .load(std::sync::atomic::Ordering::SeqCst);
                 if !quitting {
                     api.prevent_close();
+                    let _ = window.emit("main-window-reset-view", ());
                     let _ = window.hide();
                 }
             }

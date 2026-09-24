@@ -152,6 +152,12 @@ function App() {
     if (!updateInfo?.updateAvailable && !downloadingUpdate) clearUpdateStatus();
   }, [clearUpdateStatus, downloadingUpdate, updateInfo?.updateAvailable]);
 
+  useEffect(() => {
+    if (!isTauri()) return;
+    const listener = listen("main-window-reset-view", closeSettings);
+    return () => { void listener.then((unlisten) => unlisten()); };
+  }, [closeSettings]);
+
   useEffect(() => () => cancelUpdateStatusReset(), [cancelUpdateStatusReset]);
 
   useEffect(() => {
