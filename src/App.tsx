@@ -97,7 +97,7 @@ function App() {
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">(
     () => isTauri() && navigator.userAgent.includes("Macintosh") ? "macos" : "browser",
   );
-  const [appVersion, setAppVersion] = useState("1.0.2");
+  const [appVersion, setAppVersion] = useState("1.0.3");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
