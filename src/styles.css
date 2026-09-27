@@ -99,27 +99,22 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   position: absolute;
   z-index: 26;
   top: 5px;
-  right: 8px;
+  right: 14px;
   display: flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: 0 4px 16px var(--shadow);
-  backdrop-filter: blur(18px);
+  gap: 4px;
 }
 .windows-window-controls button {
   display: grid;
-  width: 36px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   place-items: center;
   border: 0;
-  border-radius: 9px;
+  border-radius: 8px;
   color: var(--text-primary);
   background: transparent;
   cursor: default;
+  transition: background .18s ease, color .18s ease;
 }
 .windows-window-controls button:hover { background: var(--surface-soft-hover); }
 .windows-window-controls button.close:hover { color: #fff; background: #d95763; }
