@@ -83,7 +83,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .app-shell.has-wallpaper { background: var(--page-solid); }
 
-.app-shell.mac-titlebar { padding-top: 44px; }
+.app-shell.mac-titlebar, .app-shell.windows-titlebar { padding-top: 44px; }
 
 .window-drag-region {
   position: absolute;
@@ -93,6 +93,37 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   left: 90px;
   height: 38px;
 }
+.window-drag-region.windows { left: 0; right: 132px; height: 44px; }
+
+.windows-window-controls {
+  position: absolute;
+  z-index: 26;
+  top: 5px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px var(--shadow);
+  backdrop-filter: blur(18px);
+}
+.windows-window-controls button {
+  display: grid;
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  color: var(--text-primary);
+  background: transparent;
+  cursor: default;
+}
+.windows-window-controls button:hover { background: var(--surface-soft-hover); }
+.windows-window-controls button.close:hover { color: #fff; background: #d95763; }
+.windows-window-controls button:active { transform: scale(.94); }
 
 .ambient-photo {
   position: absolute;
@@ -466,6 +497,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   background: rgba(3,7,18,.42);
   backdrop-filter: blur(10px);
 }
+.windows-titlebar .settings-backdrop { padding-top: 48px; }
 .settings-panel {
   width: min(420px, 100%);
   height: 100%;

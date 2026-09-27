@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DatePicker } from "./components/DatePicker";
+import { WindowsTitleBar } from "./components/WindowsTitleBar";
 import { preloadWallpaperImage } from "./lib/image";
 import {
   addDays,
@@ -95,7 +96,12 @@ function App() {
   const [saveDirectoryError, setSaveDirectoryError] = useState("");
   const [choosingSaveDirectory, setChoosingSaveDirectory] = useState(false);
   const [platform, setPlatform] = useState<"windows" | "macos" | "browser">(
-    () => isTauri() && navigator.userAgent.includes("Macintosh") ? "macos" : "browser",
+    () => {
+      if (!isTauri()) return "browser";
+      if (navigator.userAgent.includes("Macintosh")) return "macos";
+      if (navigator.userAgent.includes("Windows")) return "windows";
+      return "browser";
+    },
   );
   const [appVersion, setAppVersion] = useState("1.0.3");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -171,10 +177,8 @@ function App() {
       document.documentElement.dataset.theme = resolved;
       document.documentElement.style.colorScheme = resolved;
       if (platform === "windows" && isTauri()) {
-        void invoke("set_window_appearance", {
-          mode: settings.theme,
-          dark: resolved === "dark",
-        }).catch((reason) => console.warn("无法同步 Windows 标题栏外观", reason));
+        void invoke("set_window_appearance", { mode: settings.theme })
+          .catch((reason) => console.warn("无法同步 Windows 窗口外观", reason));
       }
     };
     applyTheme();
@@ -544,7 +548,7 @@ function App() {
   const showDetails = detailsExpanded || detailsHovered;
 
   return (
-    <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}${platform === "macos" ? " mac-titlebar" : ""}`}>
+    <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}${platform === "macos" ? " mac-titlebar" : ""}${platform === "windows" ? " windows-titlebar" : ""}`}>
       {outgoingWallpaper && (
         <img className="ambient-photo outgoing" src={outgoingWallpaper.imageUrl} alt="" aria-hidden="true" />
       )}
@@ -559,6 +563,7 @@ function App() {
       )}
       <div className="ambient" aria-hidden="true" />
       {platform === "macos" && <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />}
+      {platform === "windows" && <WindowsTitleBar />}
       <section className="wallpaper-stage" aria-busy={action === "loading"}>
         {outgoingWallpaper && (
           <img className="wallpaper-image outgoing" src={outgoingWallpaper.imageUrl} alt="" aria-hidden="true" />

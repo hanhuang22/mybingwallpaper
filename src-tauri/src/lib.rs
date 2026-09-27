@@ -728,11 +728,7 @@ fn get_platform() -> &'static str {
 }
 
 #[tauri::command]
-fn set_window_appearance<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    mode: String,
-    dark: bool,
-) -> Result<(), String> {
+fn set_window_appearance<R: Runtime>(app: tauri::AppHandle<R>, mode: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let theme = match mode.as_str() {
@@ -745,13 +741,9 @@ fn set_window_appearance<R: Runtime>(
         window
             .set_theme(theme)
             .map_err(|error| format!("无法设置窗口主题：{error}"))?;
-        let hwnd = window
-            .hwnd()
-            .map_err(|error| format!("无法获取窗口句柄：{error}"))?;
-        platform::set_window_caption_colors(hwnd, dark);
     }
     #[cfg(not(target_os = "windows"))]
-    let _ = (app, mode, dark);
+    let _ = (app, mode);
     Ok(())
 }
 
@@ -894,6 +886,12 @@ pub fn run() {
                 quitting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             });
             build_tray(app)?;
+
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_decorations(false)?;
+                platform::style_borderless_window(window.hwnd()?);
+            }
 
             let launched_in_background =
                 std::env::args().any(|argument| argument == "--background");

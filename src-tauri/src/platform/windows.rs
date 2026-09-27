@@ -1,7 +1,9 @@
 use std::{ffi::c_void, os::windows::ffi::OsStrExt, path::Path};
 use windows::Win32::{
     Foundation::HWND,
-    Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR},
+    Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    },
 };
 use windows::{core::HSTRING, Storage::StorageFile, System::UserProfile::LockScreen};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -39,29 +41,23 @@ pub fn set_lock_screen_wallpaper(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// DWM caption colors require Windows 11. On Windows 10, the native theme set by
-// Tauri still applies, and these unsupported attributes can safely be ignored.
-pub fn set_window_caption_colors(hwnd: HWND, dark: bool) {
-    let colorref = |red: u8, green: u8, blue: u8| {
-        u32::from(red) | (u32::from(green) << 8) | (u32::from(blue) << 16)
-    };
-    let (background, foreground) = if dark {
-        (colorref(0x11, 0x18, 0x27), colorref(0xf8, 0xfa, 0xfc))
-    } else {
-        (colorref(0xee, 0xf2, 0xf8), colorref(0x17, 0x20, 0x33))
-    };
+// Windows 11 can retain native rounded corners and shadow without drawing the
+// bright one-pixel border around a frameless window. Windows 10 ignores these.
+pub fn style_borderless_window(hwnd: HWND) {
+    let no_border = 0xffff_fffe_u32;
+    let rounded = DWMWCP_ROUND;
     unsafe {
         let _ = DwmSetWindowAttribute(
             hwnd,
-            DWMWA_CAPTION_COLOR,
-            (&background as *const u32).cast(),
-            std::mem::size_of::<u32>() as u32,
+            DWMWA_BORDER_COLOR,
+            (&no_border as *const u32).cast(),
+            std::mem::size_of_val(&no_border) as u32,
         );
         let _ = DwmSetWindowAttribute(
             hwnd,
-            DWMWA_TEXT_COLOR,
-            (&foreground as *const u32).cast(),
-            std::mem::size_of::<u32>() as u32,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            (&rounded as *const _).cast(),
+            std::mem::size_of_val(&rounded) as u32,
         );
     }
 }
