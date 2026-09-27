@@ -3,6 +3,7 @@ use windows::Win32::{
     Foundation::HWND,
     Graphics::Dwm::{
         DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+        DWM_WINDOW_CORNER_PREFERENCE,
     },
 };
 use windows::{core::HSTRING, Storage::StorageFile, System::UserProfile::LockScreen};
@@ -56,7 +57,7 @@ pub fn style_borderless_window(hwnd: HWND) {
         let _ = DwmSetWindowAttribute(
             hwnd,
             DWMWA_WINDOW_CORNER_PREFERENCE,
-            (&rounded as *const _).cast(),
+            (&rounded as *const DWM_WINDOW_CORNER_PREFERENCE).cast(),
             std::mem::size_of_val(&rounded) as u32,
         );
     }
