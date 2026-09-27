@@ -163,16 +163,16 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 button:disabled { cursor: not-allowed; opacity: .42; }
 
 .wallpaper-stage {
+  /* Moving the rounded clip with top avoids WebView2 edge seams during hover. */
+  top: 0;
   min-height: 350px;
   overflow: hidden;
   border-radius: 24px;
   background: rgba(15,23,42,.78);
   box-shadow: 0 26px 72px var(--shadow);
-  transform: translateZ(0);
-  transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s ease;
-  will-change: transform;
+  transition: top .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s ease;
 }
-.has-wallpaper .wallpaper-stage { background: transparent; }
+.has-wallpaper .wallpaper-stage { background: #0f172a; }
 .wallpaper-stage::after {
   position: absolute;
   z-index: 1;
@@ -185,7 +185,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 }
 .wallpaper-stage:hover {
   box-shadow: 0 34px 92px var(--shadow);
-  transform: translateY(-3px) scale(1.002);
+  top: -3px;
 }
 .wallpaper-stage:hover::after { opacity: .55; }
 .wallpaper-stage:hover .wallpaper-image { transform: scale(1.025); }
@@ -272,6 +272,9 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   box-shadow: 0 16px 45px var(--shadow);
   backdrop-filter: blur(24px);
 }
+
+.windows-titlebar .wallpaper-stage { border-radius: 16px; }
+.windows-titlebar .control-dock { border-radius: 14px; }
 
 .date-navigation, .primary-actions { gap: 8px; }
 
@@ -633,7 +636,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 
 @media (hover: none) {
   .image-info-toggle { opacity: .78; }
-  .wallpaper-stage:hover { transform: none; }
+  .wallpaper-stage:hover { top: 0; }
   .wallpaper-stage:hover .wallpaper-image { transform: scale(1.001); }
 }
 

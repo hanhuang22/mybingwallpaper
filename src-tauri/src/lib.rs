@@ -890,6 +890,8 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             if let Some(window) = app.get_webview_window("main") {
                 window.set_decorations(false)?;
+                // Tauri's undecorated shadow reserves a native 1px strip above the webview.
+                window.set_shadow(false)?;
                 platform::style_borderless_window(window.hwnd()?);
             }
 

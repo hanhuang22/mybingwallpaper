@@ -2,8 +2,8 @@ use std::{ffi::c_void, os::windows::ffi::OsStrExt, path::Path};
 use windows::Win32::{
     Foundation::HWND,
     Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
-        DWM_WINDOW_CORNER_PREFERENCE,
+        DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE,
+        DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND, DWM_WINDOW_CORNER_PREFERENCE,
     },
 };
 use windows::{core::HSTRING, Storage::StorageFile, System::UserProfile::LockScreen};
@@ -42,10 +42,10 @@ pub fn set_lock_screen_wallpaper(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// Windows 11 can retain native rounded corners and shadow without drawing the
-// bright one-pixel border around a frameless window. Windows 10 ignores these.
+// Request rounded corners and suppress DWM's frame border when supported.
+// The native shadow is disabled separately so it cannot reserve a top pixel.
 pub fn style_borderless_window(hwnd: HWND) {
-    let no_border = 0xffff_fffe_u32;
+    let no_border = DWMWA_COLOR_NONE;
     let rounded = DWMWCP_ROUND;
     unsafe {
         let _ = DwmSetWindowAttribute(
