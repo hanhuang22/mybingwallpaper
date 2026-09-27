@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Permissions for the main wallpaper window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
 }

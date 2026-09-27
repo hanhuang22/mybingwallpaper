@@ -727,6 +727,34 @@ fn get_platform() -> &'static str {
     }
 }
 
+#[tauri::command]
+fn set_window_appearance<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    mode: String,
+    dark: bool,
+) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let theme = match mode.as_str() {
+            "system" => None,
+            "light" => Some(tauri::Theme::Light),
+            "dark" => Some(tauri::Theme::Dark),
+            _ => return Err("外观模式无效".to_string()),
+        };
+        let window = app.get_webview_window("main").ok_or("主窗口不可用")?;
+        window
+            .set_theme(theme)
+            .map_err(|error| format!("无法设置窗口主题：{error}"))?;
+        let hwnd = window
+            .hwnd()
+            .map_err(|error| format!("无法获取窗口句柄：{error}"))?;
+        platform::set_window_caption_colors(hwnd, dark);
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = (app, mode, dark);
+    Ok(())
+}
+
 async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
     let (client, cache, config, guard, update_lock) = {
         let state = app.state::<AppState>();
@@ -926,6 +954,7 @@ pub fn run() {
             save_settings,
             run_auto_update,
             get_platform,
+            set_window_appearance,
             get_app_version,
             prepare_software_update,
             install_software_update,

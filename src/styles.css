@@ -83,6 +83,17 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .app-shell.has-wallpaper { background: var(--page-solid); }
 
+.app-shell.mac-titlebar { padding-top: 44px; }
+
+.window-drag-region {
+  position: absolute;
+  z-index: 25;
+  top: 0;
+  right: 0;
+  left: 90px;
+  height: 38px;
+}
+
 .ambient-photo {
   position: absolute;
   inset: -64px;

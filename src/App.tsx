@@ -94,7 +94,9 @@ function App() {
   const [saveDirectory, setSaveDirectory] = useState("");
   const [saveDirectoryError, setSaveDirectoryError] = useState("");
   const [choosingSaveDirectory, setChoosingSaveDirectory] = useState(false);
-  const [platform, setPlatform] = useState<"windows" | "macos" | "browser">("browser");
+  const [platform, setPlatform] = useState<"windows" | "macos" | "browser">(
+    () => isTauri() && navigator.userAgent.includes("Macintosh") ? "macos" : "browser",
+  );
   const [appVersion, setAppVersion] = useState("1.0.2");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
@@ -168,11 +170,17 @@ function App() {
         : settings.theme;
       document.documentElement.dataset.theme = resolved;
       document.documentElement.style.colorScheme = resolved;
+      if (platform === "windows" && isTauri()) {
+        void invoke("set_window_appearance", {
+          mode: settings.theme,
+          dark: resolved === "dark",
+        }).catch((reason) => console.warn("无法同步 Windows 标题栏外观", reason));
+      }
     };
     applyTheme();
     media.addEventListener("change", applyTheme);
     return () => media.removeEventListener("change", applyTheme);
-  }, [settings.theme]);
+  }, [platform, settings.theme]);
 
   const showWallpaper = useCallback((next: Wallpaper) => {
     const previous = wallpaperRef.current;
@@ -536,7 +544,7 @@ function App() {
   const showDetails = detailsExpanded || detailsHovered;
 
   return (
-    <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}`}>
+    <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}${platform === "macos" ? " mac-titlebar" : ""}`}>
       {outgoingWallpaper && (
         <img className="ambient-photo outgoing" src={outgoingWallpaper.imageUrl} alt="" aria-hidden="true" />
       )}
@@ -550,6 +558,7 @@ function App() {
         />
       )}
       <div className="ambient" aria-hidden="true" />
+      {platform === "macos" && <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />}
       <section className="wallpaper-stage" aria-busy={action === "loading"}>
         {outgoingWallpaper && (
           <img className="wallpaper-image outgoing" src={outgoingWallpaper.imageUrl} alt="" aria-hidden="true" />

@@ -9,7 +9,7 @@ mod windows;
 #[cfg(target_os = "macos")]
 pub use macos::{connected_display_ids, set_desktop_wallpaper, set_lock_screen_wallpaper};
 #[cfg(target_os = "windows")]
-pub use windows::{set_desktop_wallpaper, set_lock_screen_wallpaper};
+pub use windows::{set_desktop_wallpaper, set_lock_screen_wallpaper, set_window_caption_colors};
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn set_desktop_wallpaper(_path: &Path) -> Result<(), String> {
