@@ -64,6 +64,52 @@ struct RemoteWallpaper {
 }
 
 #[derive(Debug, Deserialize)]
+struct BingModel {
+    #[serde(rename = "MediaContents")]
+    media_contents: Vec<BingMedia>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BingMedia {
+    #[serde(rename = "Ssd")]
+    ssd: String,
+    #[serde(rename = "ImageContent")]
+    image_content: BingImageContent,
+}
+
+#[derive(Debug, Deserialize)]
+struct BingImageContent {
+    #[serde(rename = "Headline")]
+    headline: String,
+    #[serde(rename = "Title")]
+    title: String,
+    #[serde(rename = "Copyright")]
+    copyright: String,
+    #[serde(rename = "Description")]
+    description: String,
+    #[serde(rename = "Image")]
+    image: BingImage,
+}
+
+#[derive(Debug, Deserialize)]
+struct BingImage {
+    #[serde(rename = "Url")]
+    url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BingArchive {
+    images: Vec<BingArchiveImage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BingArchiveImage {
+    enddate: String,
+    urlbase: String,
+    copyright: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct RemoteRelease {
     tag_name: String,
 }
@@ -251,20 +297,105 @@ async fn fetch_month_archive(
         .map_err(|error| format!("壁纸数据解析失败：{error}"))
 }
 
+fn wallpaper_from_live_bing(
+    date: &str,
+    model: &BingModel,
+    archive: &BingArchive,
+) -> Result<Wallpaper, String> {
+    let key = date.replace('-', "");
+    let archive_image = archive
+        .images
+        .iter()
+        .find(|image| image.enddate == key)
+        .ok_or_else(|| "Bing 尚未发布今日壁纸".to_string())?;
+    let media = model
+        .media_contents
+        .iter()
+        .find(|media| media.ssd.starts_with(&key))
+        .ok_or_else(|| "Bing 两个中文接口的日期不一致".to_string())?;
+    let content = &media.image_content;
+    let model_urlbase = content
+        .image
+        .url
+        .rsplit_once('_')
+        .map(|(base, _)| base)
+        .ok_or_else(|| "Bing 图片地址格式无效".to_string())?;
+    if model_urlbase != archive_image.urlbase
+        || content.headline.trim().is_empty()
+        || content.title.trim().is_empty()
+        || content.copyright.trim().is_empty()
+        || content.description.trim().is_empty()
+        || !archive_image.copyright.contains(&content.title)
+        || !archive_image.copyright.contains(&content.copyright)
+    {
+        return Err("Bing 两个中文接口的图片信息不一致".to_string());
+    }
+    let url = format!("https://cn.bing.com{model_urlbase}_UHD.jpg");
+    image_url(&url)?;
+    Ok(Wallpaper {
+        date: date.to_string(),
+        title: format!(
+            "{}  |  {} {}  -  {}",
+            content.headline,
+            content.title,
+            content.copyright,
+            date.replace('-', "/")
+        ),
+        description: content.description.clone(),
+        image_url: url,
+    })
+}
+
+async fn fetch_live_today_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
+    let model = client
+        .get("https://www.bing.com/hp/api/model?mkt=zh-CN")
+        .send()
+        .await
+        .map_err(|error| format!("获取 Bing 实时图片失败：{error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Bing 实时图片服务异常：{error}"))?
+        .json::<BingModel>()
+        .await
+        .map_err(|error| format!("Bing 实时图片解析失败：{error}"))?;
+    let archive = client
+        .get("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN")
+        .send()
+        .await
+        .map_err(|error| format!("获取 Bing 日期信息失败：{error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Bing 日期服务异常：{error}"))?
+        .json::<BingArchive>()
+        .await
+        .map_err(|error| format!("Bing 日期信息解析失败：{error}"))?;
+    wallpaper_from_live_bing(date, &model, &archive)
+}
+
 async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
     let date = validate_date(date)?;
     let key = date.replace('-', "");
-    let records = fetch_month_archive(client, &key[..6]).await?;
-    let record = records
-        .get(&key)
-        .ok_or_else(|| "没有找到这一天的壁纸".to_string())?;
-    image_url(&record.imgurl)?;
-    Ok(Wallpaper {
-        date: record.date.clone().unwrap_or(date),
-        title: record.imgtitle.clone(),
-        description: record.imgdesc.clone(),
-        image_url: record.imgurl.clone(),
-    })
+    let is_today = date == Local::now().format("%Y-%m-%d").to_string();
+    let records = match fetch_month_archive(client, &key[..6]).await {
+        Ok(records) => records,
+        Err(error) if is_today => {
+            return fetch_live_today_wallpaper(client, &date)
+                .await
+                .map_err(|live_error| format!("{error}；{live_error}"));
+        }
+        Err(error) => return Err(error),
+    };
+    if let Some(record) = records.get(&key) {
+        image_url(&record.imgurl)?;
+        return Ok(Wallpaper {
+            date: record.date.clone().unwrap_or(date),
+            title: record.imgtitle.clone(),
+            description: record.imgdesc.clone(),
+            image_url: record.imgurl.clone(),
+        });
+    }
+    if is_today {
+        return fetch_live_today_wallpaper(client, &date).await;
+    }
+    Err("没有找到这一天的壁纸".to_string())
 }
 
 async fn fetch_month_wallpapers(client: &Client, month: &str) -> Result<Vec<Wallpaper>, String> {
@@ -1030,7 +1161,8 @@ pub fn run() {
 mod tests {
     use super::{
         effective_save_directory, parse_version, should_skip_auto_update, trusted_external_url,
-        validate_month, wallpaper_cache_path, Settings,
+        validate_month, wallpaper_cache_path, wallpaper_from_live_bing, BingArchive, BingModel,
+        Settings,
     };
     use std::path::Path;
 
@@ -1063,6 +1195,43 @@ mod tests {
             corrected,
             wallpaper_cache_path(cache, "2026-09-28", "https://bing.com/AmberHall.jpg")
         );
+    }
+
+    #[test]
+    fn live_today_requires_matching_chinese_date_and_image() {
+        let mut model: BingModel = serde_json::from_value(serde_json::json!({
+            "MediaContents": [{
+                "Ssd": "20260929",
+                "ImageContent": {
+                    "Headline": "冰川孕育之河",
+                    "Title": "阿拉斯加的一条河流",
+                    "Copyright": "© Example/Getty Images",
+                    "Description": "冰川融水形成的河流。",
+                    "Image": {"Url": "/th?id=OHR.KasilofRiver_ZH-CN2394091052_1920x1080.webp"}
+                }
+            }]
+        }))
+        .unwrap();
+        let mut archive: BingArchive = serde_json::from_value(serde_json::json!({
+            "images": [{
+                "enddate": "20260929",
+                "urlbase": "/th?id=OHR.KasilofRiver_ZH-CN2394091052",
+                "copyright": "阿拉斯加的一条河流 © Example/Getty Images"
+            }]
+        }))
+        .unwrap();
+        let wallpaper = wallpaper_from_live_bing("2026-09-29", &model, &archive).unwrap();
+        assert_eq!(wallpaper.date, "2026-09-29");
+        assert_eq!(
+            wallpaper.image_url,
+            "https://cn.bing.com/th?id=OHR.KasilofRiver_ZH-CN2394091052_UHD.jpg"
+        );
+
+        archive.images[0].urlbase = "/th?id=OHR.Different_ZH-CN123".to_string();
+        assert!(wallpaper_from_live_bing("2026-09-29", &model, &archive).is_err());
+        archive.images[0].urlbase = "/th?id=OHR.KasilofRiver_ZH-CN2394091052".to_string();
+        model.media_contents[0].ssd = "20260928".to_string();
+        assert!(wallpaper_from_live_bing("2026-09-29", &model, &archive).is_err());
     }
 
     #[test]

@@ -68,6 +68,8 @@ const OFFICIAL_SITE = "https://hanhuang22.github.io/mybingwallpaper/";
 const GITEE_RELEASES = "https://gitee.com/Hyman25/mybingwallpaper/releases";
 
 const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
+const isUnpublishedToday = (detail: string) =>
+  detail.includes("没有找到这一天的壁纸") || detail.includes("Bing 尚未发布今日壁纸");
 
 function friendlyDate(date: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -106,6 +108,7 @@ function App() {
   });
   const [wallpaper, setWallpaper] = useState<Wallpaper | null>(null);
   const [outgoingWallpaper, setOutgoingWallpaper] = useState<Wallpaper | null>(null);
+  const [retryTodayWallpaper, setRetryTodayWallpaper] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryMonth, setGalleryMonth] = useState(() => formatDateKey(new Date()).slice(0, 7));
   const [galleryRecords, setGalleryRecords] = useState<Wallpaper[]>([]);
@@ -134,7 +137,7 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.0.8");
+  const [appVersion, setAppVersion] = useState("1.0.9");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
@@ -143,6 +146,7 @@ function App() {
   const wallpaperRequest = useRef(0);
   const lastAutomaticRefreshDate = useRef<string | null>(null);
   const wallpaperRef = useRef<Wallpaper | null>(null);
+  const selectedDateRef = useRef(selectedDate);
   const galleryStageRef = useRef<HTMLElement>(null);
   const galleryCache = useRef(new Map<string, { records: Wallpaper[]; loadedAt: number }>());
   const gallerySelectionId = useRef(0);
@@ -150,6 +154,8 @@ function App() {
   const galleryZoomTimer = useRef<number | null>(null);
   const settingsOpenRef = useRef(settingsOpen);
   const updateStatusResetTimer = useRef<number | null>(null);
+
+  selectedDateRef.current = selectedDate;
 
   useEffect(() => {
     settingsOpenRef.current = settingsOpen;
@@ -261,13 +267,21 @@ function App() {
       await preloadWallpaperImage(next.imageUrl);
       if (request !== wallpaperRequest.current) return null;
       showWallpaper(next);
+      setRetryTodayWallpaper(false);
       setMessage("");
       return next;
     } catch (reason) {
       if (request === wallpaperRequest.current) {
         const detail = reason instanceof Error ? reason.message : String(reason);
-        setError(`${friendlyDate(date)} 的壁纸加载失败：${detail}${wallpaperRef.current ? "；已保留上一张壁纸" : ""}`);
-        setMessage("");
+        const isToday = date === formatDateKey(new Date());
+        setRetryTodayWallpaper(isToday);
+        if (isToday && isUnpublishedToday(detail)) {
+          setError("");
+          setMessage("今日壁纸尚未同步，稍后自动重试");
+        } else {
+          setError(`${friendlyDate(date)} 的壁纸加载失败：${detail}${wallpaperRef.current ? "；已保留上一张壁纸" : ""}`);
+          setMessage("");
+        }
       }
       return null;
     } finally {
@@ -320,11 +334,18 @@ function App() {
   }, [loadWallpaper, selectedDate]);
 
   useEffect(() => {
+    if (!retryTodayWallpaper || selectedDate !== today) return;
+    const retryTimer = window.setInterval(() => void loadWallpaper(selectedDate), 2 * 60_000);
+    return () => window.clearInterval(retryTimer);
+  }, [loadWallpaper, retryTodayWallpaper, selectedDate, today]);
+
+  useEffect(() => {
     let midnightTimer = 0;
 
     const refreshWallpaper = () => {
       if (!isTauri()) return;
       void invoke("run_auto_update").catch((reason) => {
+        if (isUnpublishedToday(String(reason))) return;
         setError(`自动更新失败：${reason instanceof Error ? reason.message : String(reason)}`);
       });
     };
@@ -401,8 +422,10 @@ function App() {
       }),
       listen<string>("auto-update-complete", (event) => {
         syncToday(event.payload);
+        if (selectedDateRef.current === event.payload) void loadWallpaper(event.payload);
       }),
       listen<string>("auto-update-error", (event) => {
+        if (isUnpublishedToday(event.payload)) return;
         setError(`自动更新失败：${event.payload}`);
       }),
       listen<string>("auto-update-warning", (event) => {
@@ -449,7 +472,7 @@ function App() {
       disposed = true;
       stopListening.forEach((unlisten) => unlisten());
     };
-  }, [appVersion, cancelUpdateStatusReset, setSelectedDate, syncToday]);
+  }, [appVersion, cancelUpdateStatusReset, loadWallpaper, setSelectedDate, syncToday]);
 
   const updateSettings = async (patch: Partial<Settings>) => {
     const next = { ...settings, ...patch };
