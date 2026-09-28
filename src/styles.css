@@ -318,11 +318,11 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   left: 26px;
   display: grid;
   width: 26px;
-  height: 72px;
+  height: 52px;
   padding: 0;
   place-items: center;
   border: 1px solid rgba(255,255,255,.23);
-  border-radius: 13px;
+  border-radius: 12px;
   color: #fff;
   background: rgba(8,12,20,.52);
   box-shadow: 0 6px 20px rgba(0,0,0,.15);
@@ -765,7 +765,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .primary-actions { flex-wrap: wrap; }
   .date-navigation { flex-wrap: wrap; }
   .image-copy { bottom: 12px; left: 50px; width: calc(100% - 66px); padding: 8px 0; }
-  .title-collapse-toggle { bottom: 20px; left: 16px; width: 24px; height: 64px; }
+  .title-collapse-toggle { bottom: 20px; left: 16px; width: 24px; height: 48px; }
   .image-copy-heading { align-items: center; gap: 10px; }
   .image-copy h1 { font-size: 22px; }
   .image-copy h1.long-title { font-size: 18px; }
