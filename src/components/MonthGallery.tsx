@@ -115,9 +115,9 @@ export function MonthGallery({
                   <span className="month-gallery-image">
                     {loadImage && <img src={thumbnailUrl(record!.imageUrl)} alt="" decoding="async" loading="lazy" onError={() => setBrokenDates((current) => new Set([...current, date]))} />}
                     {brokenDates.has(date) || !record ? <ImageOff size={23} /> : null}
+                    <span className="month-gallery-day" aria-hidden="true">{Number(date.slice(-2))}</span>
                     {pendingDate === date && <span className="month-gallery-card-loading"><LoaderCircle className="spin" size={19} /></span>}
                   </span>
-                  <span className="month-gallery-card-caption"><strong>{Number(date.slice(-2))}日</strong><span>{headline}</span></span>
                 </button>
               );
             })}
