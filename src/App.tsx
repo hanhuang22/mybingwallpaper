@@ -138,7 +138,7 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.0.10");
+  const [appVersion, setAppVersion] = useState("1.0.11");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
@@ -340,6 +340,24 @@ function App() {
     const retryTimer = window.setInterval(() => void loadWallpaper(selectedDate), 2 * 60_000);
     return () => window.clearInterval(retryTimer);
   }, [loadWallpaper, retryTodayWallpaper, selectedDate, today]);
+
+  useEffect(() => {
+    if (selectedDate !== today || wallpaper?.date !== today || wallpaper.description.trim()) return;
+    let active = true;
+    const retryTimer = window.setInterval(() => {
+      void getWallpaper(today).then((next) => {
+        if (!active || selectedDateRef.current !== today || !next.description.trim()) return;
+        const current = wallpaperRef.current;
+        if (current?.date !== today) return;
+        if (current.imageUrl === next.imageUrl) showWallpaper(next);
+        else void loadWallpaper(today);
+      }).catch(() => {});
+    }, 2 * 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(retryTimer);
+    };
+  }, [loadWallpaper, selectedDate, showWallpaper, today, wallpaper?.date, wallpaper?.description]);
 
   useEffect(() => {
     let midnightTimer = 0;

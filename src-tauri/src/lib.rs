@@ -307,16 +307,17 @@ fn wallpaper_from_live_bing(
     if !archive_image.urlbase.starts_with("/th?id=OHR.") {
         return Err("Bing 图片地址格式无效".to_string());
     }
+    let archive_image_id = bing_image_id(&archive_image.urlbase);
     let description = model
         .and_then(|model| {
             model.media_contents.iter().find(|media| {
                 media.ssd.starts_with(&key)
-                    && media
-                        .image_content
-                        .image
-                        .url
-                        .rsplit_once('_')
-                        .is_some_and(|(base, _)| base == archive_image.urlbase.as_str())
+                    && archive_image_id.as_deref().is_some_and(|archive_id| {
+                        bing_image_id(&media.image_content.image.url)
+                            .as_deref()
+                            .and_then(|model_id| model_id.strip_prefix(archive_id))
+                            .is_some_and(|suffix| suffix.starts_with('_'))
+                    })
             })
         })
         .map(|media| media.image_content.description.clone())
@@ -340,10 +341,30 @@ fn wallpaper_from_live_bing(
     })
 }
 
-async fn fetch_bing_model(client: &Client) -> Result<BingModel, reqwest::Error> {
+fn bing_image_id(raw: &str) -> Option<String> {
+    let url = Url::parse(raw)
+        .or_else(|_| Url::parse("https://www.bing.com")?.join(raw))
+        .ok()?;
+    let host = url.host_str()?.to_ascii_lowercase();
+    if url.scheme() != "https"
+        || !(host == "bing.com"
+            || host.ends_with(".bing.com")
+            || host == "bing.net"
+            || host.ends_with(".bing.net"))
+        || url.path() != "/th"
+    {
+        return None;
+    }
+    url.query_pairs()
+        .find(|(name, _)| name == "id")
+        .map(|(_, id)| id.into_owned())
+        .filter(|id| id.starts_with("OHR."))
+}
+
+async fn fetch_bing_model(client: &Client, endpoint: &str) -> Result<BingModel, reqwest::Error> {
     client
-        .get("https://www.bing.com/hp/api/model?mkt=zh-CN")
-        .timeout(Duration::from_secs(4))
+        .get(endpoint)
+        .timeout(Duration::from_secs(8))
         .send()
         .await?
         .error_for_status()?
@@ -362,8 +383,19 @@ async fn fetch_live_today_wallpaper(client: &Client, date: &str) -> Result<Wallp
         .json::<BingArchive>()
         .await
         .map_err(|error| format!("Bing 日期信息解析失败：{error}"))?;
-    let model = fetch_bing_model(client).await.ok();
-    wallpaper_from_live_bing(date, model.as_ref(), &archive)
+    let mut wallpaper = wallpaper_from_live_bing(date, None, &archive)?;
+    let (cn_model, www_model) = tokio::join!(
+        fetch_bing_model(client, "https://cn.bing.com/hp/api/model?mkt=zh-CN"),
+        fetch_bing_model(client, "https://www.bing.com/hp/api/model?mkt=zh-CN"),
+    );
+    for model in [cn_model.ok(), www_model.ok()].into_iter().flatten() {
+        let candidate = wallpaper_from_live_bing(date, Some(&model), &archive)?;
+        if !candidate.description.trim().is_empty() {
+            wallpaper.description = candidate.description;
+            break;
+        }
+    }
+    Ok(wallpaper)
 }
 
 async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
@@ -1156,9 +1188,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        effective_save_directory, parse_version, should_skip_auto_update, trusted_external_url,
-        validate_month, wallpaper_cache_path, wallpaper_from_live_bing, BingArchive, BingModel,
-        Settings,
+        bing_image_id, effective_save_directory, parse_version, should_skip_auto_update,
+        trusted_external_url, validate_month, wallpaper_cache_path, wallpaper_from_live_bing,
+        BingArchive, BingModel, Settings,
     };
     use std::path::Path;
 
@@ -1226,6 +1258,12 @@ mod tests {
         );
 
         model.media_contents[0].image_content.image.url =
+            "https://ts1.tc.mm.bing.net/th?id=OHR.KasilofRiver_ZH-CN2394091052_1920x1080.webp"
+                .to_string();
+        let absolute_url = wallpaper_from_live_bing("2026-09-29", Some(&model), &archive).unwrap();
+        assert_eq!(absolute_url.description, "冰川融水形成的河流。");
+
+        model.media_contents[0].image_content.image.url =
             "/th?id=OHR.Different_ZH-CN123_1920x1080.webp".to_string();
         let mismatched = wallpaper_from_live_bing("2026-09-29", Some(&model), &archive).unwrap();
         assert_eq!(mismatched.image_url, wallpaper.image_url);
@@ -1234,6 +1272,17 @@ mod tests {
 
         archive.images[0].enddate = "20260928".to_string();
         assert!(wallpaper_from_live_bing("2026-09-29", None, &archive).is_err());
+    }
+
+    #[test]
+    fn bing_description_image_id_requires_a_bing_image_url() {
+        assert_eq!(
+            bing_image_id("https://ts1.tc.mm.bing.net/th?id=OHR.Test_ZH-CN123_1920x1080.webp"),
+            Some("OHR.Test_ZH-CN123_1920x1080.webp".to_string())
+        );
+        assert!(
+            bing_image_id("https://example.com/th?id=OHR.Test_ZH-CN123_1920x1080.webp").is_none()
+        );
     }
 
     #[test]
