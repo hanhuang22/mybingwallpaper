@@ -121,6 +121,7 @@ function App() {
   const [action, setAction] = useState<Action>("loading");
   const [message, setMessage] = useState("正在载入今日壁纸…");
   const [error, setError] = useState("");
+  const [dismissedToast, setDismissedToast] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [titleCollapsed, setTitleCollapsed] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
@@ -137,7 +138,7 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.0.9");
+  const [appVersion, setAppVersion] = useState("1.0.10");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
@@ -268,6 +269,7 @@ function App() {
       if (request !== wallpaperRequest.current) return null;
       showWallpaper(next);
       setRetryTodayWallpaper(false);
+      setDismissedToast(null);
       setMessage("");
       return next;
     } catch (reason) {
@@ -422,6 +424,8 @@ function App() {
       }),
       listen<string>("auto-update-complete", (event) => {
         syncToday(event.payload);
+        setError((current) => current.startsWith("自动更新失败：") ? "" : current);
+        setDismissedToast((current) => current?.startsWith("自动更新失败：") ? null : current);
         if (selectedDateRef.current === event.payload) void loadWallpaper(event.payload);
       }),
       listen<string>("auto-update-error", (event) => {
@@ -740,6 +744,7 @@ function App() {
 
   const title = parseTitle(wallpaper?.title ?? "必应每日壁纸");
   const showDetails = !titleCollapsed && (detailsExpanded || detailsHovered);
+  const toastText = error || (!action ? message : "");
 
   return (
     <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}${platform === "macos" ? " mac-titlebar" : ""}${platform === "windows" ? " windows-titlebar" : ""}`}>
@@ -900,10 +905,11 @@ function App() {
         </div>
       </section>
 
-      {(error || (message && !action)) && (
+      {toastText && toastText !== dismissedToast && (
         <div className={error ? "toast error" : "toast"} role={error ? "alert" : "status"}>
-          {error || message}
+          <span className="toast-message">{toastText}</span>
           {error && <button type="button" onClick={() => void loadWallpaper(selectedDate)}><RefreshCw size={15} />重试</button>}
+          <button className="toast-dismiss" type="button" aria-label="关闭提示" title="关闭提示" onClick={() => setDismissedToast(toastText)}><X size={15} /></button>
         </div>
       )}
 

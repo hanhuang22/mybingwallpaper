@@ -79,13 +79,7 @@ struct BingMedia {
 
 #[derive(Debug, Deserialize)]
 struct BingImageContent {
-    #[serde(rename = "Headline")]
-    headline: String,
-    #[serde(rename = "Title")]
-    title: String,
-    #[serde(rename = "Copyright")]
-    copyright: String,
-    #[serde(rename = "Description")]
+    #[serde(rename = "Description", default)]
     description: String,
     #[serde(rename = "Image")]
     image: BingImage,
@@ -106,6 +100,8 @@ struct BingArchive {
 struct BingArchiveImage {
     enddate: String,
     urlbase: String,
+    #[serde(default)]
+    title: String,
     copyright: String,
 }
 
@@ -299,7 +295,7 @@ async fn fetch_month_archive(
 
 fn wallpaper_from_live_bing(
     date: &str,
-    model: &BingModel,
+    model: Option<&BingModel>,
     archive: &BingArchive,
 ) -> Result<Wallpaper, String> {
     let key = date.replace('-', "");
@@ -308,55 +304,54 @@ fn wallpaper_from_live_bing(
         .iter()
         .find(|image| image.enddate == key)
         .ok_or_else(|| "Bing 尚未发布今日壁纸".to_string())?;
-    let media = model
-        .media_contents
-        .iter()
-        .find(|media| media.ssd.starts_with(&key))
-        .ok_or_else(|| "Bing 两个中文接口的日期不一致".to_string())?;
-    let content = &media.image_content;
-    let model_urlbase = content
-        .image
-        .url
-        .rsplit_once('_')
-        .map(|(base, _)| base)
-        .ok_or_else(|| "Bing 图片地址格式无效".to_string())?;
-    if model_urlbase != archive_image.urlbase
-        || content.headline.trim().is_empty()
-        || content.title.trim().is_empty()
-        || content.copyright.trim().is_empty()
-        || content.description.trim().is_empty()
-        || !archive_image.copyright.contains(&content.title)
-        || !archive_image.copyright.contains(&content.copyright)
-    {
-        return Err("Bing 两个中文接口的图片信息不一致".to_string());
+    if !archive_image.urlbase.starts_with("/th?id=OHR.") {
+        return Err("Bing 图片地址格式无效".to_string());
     }
-    let url = format!("https://cn.bing.com{model_urlbase}_UHD.jpg");
+    let description = model
+        .and_then(|model| {
+            model.media_contents.iter().find(|media| {
+                media.ssd.starts_with(&key)
+                    && media
+                        .image_content
+                        .image
+                        .url
+                        .rsplit_once('_')
+                        .is_some_and(|(base, _)| base == archive_image.urlbase.as_str())
+            })
+        })
+        .map(|media| media.image_content.description.clone())
+        .unwrap_or_default();
+    let url = format!("https://cn.bing.com{}_UHD.jpg", archive_image.urlbase);
     image_url(&url)?;
     Ok(Wallpaper {
         date: date.to_string(),
         title: format!(
-            "{}  |  {} {}  -  {}",
-            content.headline,
-            content.title,
-            content.copyright,
+            "{}  |  {}  -  {}",
+            if archive_image.title.trim().is_empty() {
+                "必应每日壁纸"
+            } else {
+                archive_image.title.trim()
+            },
+            archive_image.copyright.trim(),
             date.replace('-', "/")
         ),
-        description: content.description.clone(),
+        description,
         image_url: url,
     })
 }
 
-async fn fetch_live_today_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
-    let model = client
+async fn fetch_bing_model(client: &Client) -> Result<BingModel, reqwest::Error> {
+    client
         .get("https://www.bing.com/hp/api/model?mkt=zh-CN")
+        .timeout(Duration::from_secs(4))
         .send()
-        .await
-        .map_err(|error| format!("获取 Bing 实时图片失败：{error}"))?
-        .error_for_status()
-        .map_err(|error| format!("Bing 实时图片服务异常：{error}"))?
+        .await?
+        .error_for_status()?
         .json::<BingModel>()
         .await
-        .map_err(|error| format!("Bing 实时图片解析失败：{error}"))?;
+}
+
+async fn fetch_live_today_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
     let archive = client
         .get("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN")
         .send()
@@ -367,7 +362,8 @@ async fn fetch_live_today_wallpaper(client: &Client, date: &str) -> Result<Wallp
         .json::<BingArchive>()
         .await
         .map_err(|error| format!("Bing 日期信息解析失败：{error}"))?;
-    wallpaper_from_live_bing(date, &model, &archive)
+    let model = fetch_bing_model(client).await.ok();
+    wallpaper_from_live_bing(date, model.as_ref(), &archive)
 }
 
 async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
@@ -1198,7 +1194,7 @@ mod tests {
     }
 
     #[test]
-    fn live_today_requires_matching_chinese_date_and_image() {
+    fn live_today_uses_the_dated_archive_when_model_metadata_disagrees() {
         let mut model: BingModel = serde_json::from_value(serde_json::json!({
             "MediaContents": [{
                 "Ssd": "20260929",
@@ -1216,22 +1212,28 @@ mod tests {
             "images": [{
                 "enddate": "20260929",
                 "urlbase": "/th?id=OHR.KasilofRiver_ZH-CN2394091052",
+                "title": "冰川孕育之河",
                 "copyright": "阿拉斯加的一条河流 © Example/Getty Images"
             }]
         }))
         .unwrap();
-        let wallpaper = wallpaper_from_live_bing("2026-09-29", &model, &archive).unwrap();
+        let wallpaper = wallpaper_from_live_bing("2026-09-29", Some(&model), &archive).unwrap();
         assert_eq!(wallpaper.date, "2026-09-29");
+        assert_eq!(wallpaper.description, "冰川融水形成的河流。");
         assert_eq!(
             wallpaper.image_url,
             "https://cn.bing.com/th?id=OHR.KasilofRiver_ZH-CN2394091052_UHD.jpg"
         );
 
-        archive.images[0].urlbase = "/th?id=OHR.Different_ZH-CN123".to_string();
-        assert!(wallpaper_from_live_bing("2026-09-29", &model, &archive).is_err());
-        archive.images[0].urlbase = "/th?id=OHR.KasilofRiver_ZH-CN2394091052".to_string();
-        model.media_contents[0].ssd = "20260928".to_string();
-        assert!(wallpaper_from_live_bing("2026-09-29", &model, &archive).is_err());
+        model.media_contents[0].image_content.image.url =
+            "/th?id=OHR.Different_ZH-CN123_1920x1080.webp".to_string();
+        let mismatched = wallpaper_from_live_bing("2026-09-29", Some(&model), &archive).unwrap();
+        assert_eq!(mismatched.image_url, wallpaper.image_url);
+        assert!(mismatched.description.is_empty());
+        assert!(wallpaper_from_live_bing("2026-09-29", None, &archive).is_ok());
+
+        archive.images[0].enddate = "20260928".to_string();
+        assert!(wallpaper_from_live_bing("2026-09-29", None, &archive).is_err());
     }
 
     #[test]
