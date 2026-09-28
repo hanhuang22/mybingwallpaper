@@ -119,6 +119,7 @@ function App() {
   const [message, setMessage] = useState("正在载入今日壁纸…");
   const [error, setError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [titleCollapsed, setTitleCollapsed] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [detailsHovered, setDetailsHovered] = useState(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -711,7 +712,7 @@ function App() {
   };
 
   const title = parseTitle(wallpaper?.title ?? "必应每日壁纸");
-  const showDetails = detailsExpanded || detailsHovered;
+  const showDetails = !titleCollapsed && (detailsExpanded || detailsHovered);
 
   return (
     <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}${platform === "macos" ? " mac-titlebar" : ""}${platform === "windows" ? " windows-titlebar" : ""}`}>
@@ -730,7 +731,7 @@ function App() {
       <div className="ambient" aria-hidden="true" />
       {platform === "macos" && <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />}
       {platform === "windows" && <WindowsTitleBar />}
-      <section className="wallpaper-stage" ref={galleryStageRef} aria-busy={action === "loading" || galleryLoading}>
+      <section className={`wallpaper-stage${titleCollapsed ? " title-collapsed" : ""}`} ref={galleryStageRef} aria-busy={action === "loading" || galleryLoading}>
         {outgoingWallpaper && (
           <img className="wallpaper-image outgoing" src={outgoingWallpaper.imageUrl} alt="" aria-hidden="true" />
         )}
@@ -740,8 +741,27 @@ function App() {
           <div className="image-placeholder"><ImageIcon size={44} /></div>
         )}
         <div className="image-shade" aria-hidden="true" />
+        {wallpaper && (
+          <button
+            className="title-collapse-toggle"
+            type="button"
+            aria-label={titleCollapsed ? "展开壁纸标题" : "收起壁纸标题，完整预览图片"}
+            aria-controls="wallpaper-title"
+            aria-expanded={!titleCollapsed}
+            title={titleCollapsed ? "展开标题" : "收起标题，完整预览"}
+            onClick={() => {
+              setTitleCollapsed((collapsed) => !collapsed);
+              setDetailsHovered(false);
+            }}
+          >
+            {titleCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        )}
         <div
+          id="wallpaper-title"
           className={`image-copy${showDetails ? " expanded" : ""}${detailsExpanded ? " pinned" : ""}`}
+          aria-hidden={titleCollapsed}
+          inert={titleCollapsed}
           onMouseEnter={() => setDetailsHovered(true)}
           onMouseLeave={() => setDetailsHovered(false)}
         >
