@@ -13,7 +13,7 @@ use std::{
 };
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, Runtime, State, WindowEvent,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
@@ -853,6 +853,15 @@ async fn run_auto_update<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), Str
     run_auto_update_once(app).await
 }
 
+fn show_main_window<R: Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit("main-window-reset-view", ());
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
     let today = MenuItem::with_id(app, "today", "应用今日壁纸", true, None::<&str>)?;
@@ -861,7 +870,7 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&show, &today, &separator, &quit])?;
     let mut builder = TrayIconBuilder::with_id("main")
         .menu(&menu)
-        .show_menu_on_left_click(true);
+        .show_menu_on_left_click(false);
 
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
@@ -871,20 +880,20 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
         builder = builder.icon_as_template(true);
     }
     builder
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.emit("main-window-reset-view", ());
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
             }
+        })
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => show_main_window(app),
             "today" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.emit("main-window-reset-view", ());
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                show_main_window(app);
                 let _ = app.emit("tray-apply-today", ());
             }
             "quit" => {
