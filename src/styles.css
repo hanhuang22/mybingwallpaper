@@ -303,8 +303,8 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   position: absolute;
   z-index: 2;
   bottom: 26px;
-  left: 64px;
-  width: min(650px, calc(100% - 90px));
+  left: 51px;
+  width: min(650px, calc(100% - 77px));
   padding: 10px 0;
   filter: drop-shadow(0 6px 18px rgba(0,0,0,.48));
   color: #fff;
@@ -315,7 +315,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   position: absolute;
   z-index: 2;
   bottom: 36px;
-  left: 26px;
+  left: 13px;
   display: grid;
   width: 26px;
   height: 52px;
@@ -748,8 +748,8 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 
 @media (max-width: 820px) {
   .app-shell { gap: 12px; padding: 12px; }
-  .image-copy { bottom: 18px; left: 54px; width: calc(100% - 72px); }
-  .title-collapse-toggle { bottom: 28px; left: 18px; }
+  .image-copy { bottom: 18px; left: 51px; width: calc(100% - 69px); }
+  .title-collapse-toggle { bottom: 28px; }
   .month-gallery-navigation > span { display: none; }
 }
 
@@ -764,8 +764,8 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .wallpaper-stage { min-height: 310px; }
   .primary-actions { flex-wrap: wrap; }
   .date-navigation { flex-wrap: wrap; }
-  .image-copy { bottom: 12px; left: 50px; width: calc(100% - 66px); padding: 8px 0; }
-  .title-collapse-toggle { bottom: 20px; left: 16px; width: 24px; height: 48px; }
+  .image-copy { bottom: 12px; left: 47px; width: calc(100% - 63px); padding: 8px 0; }
+  .title-collapse-toggle { bottom: 20px; width: 24px; height: 48px; }
   .image-copy-heading { align-items: center; gap: 10px; }
   .image-copy h1 { font-size: 22px; }
   .image-copy h1.long-title { font-size: 18px; }
