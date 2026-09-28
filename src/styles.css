@@ -358,7 +358,21 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .image-info-toggle:hover, .image-info-toggle:focus-visible, .image-copy.pinned .image-info-toggle { color: #fff; background: rgba(8,12,20,.52); opacity: 1; transform: translateY(-1px); }
 .image-copy-details { max-width: 570px; margin-bottom: 14px; animation: details-in .24s ease both; }
 .attribution { margin: 0; color: rgba(255,255,255,.84); font-size: 13px; }
-.description { display: -webkit-box; max-width: 540px; margin: 9px 0 0; overflow: hidden; color: rgba(255,255,255,.68); font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.description {
+  max-width: 540px;
+  max-height: min(24vh, 176px);
+  margin: 9px 0 0;
+  padding-right: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: rgba(255,255,255,.68);
+  font-size: 12px;
+  line-height: 1.55;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.45) transparent;
+}
+.description::-webkit-scrollbar { width: 5px; }
+.description::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(255,255,255,.45); }
 
 .loading-indicator {
   position: absolute;

@@ -7,7 +7,7 @@
 
 [项目网站](https://hanhuang22.github.io/mybingwallpaper/) · [GitHub 下载](https://github.com/hanhuang22/mybingwallpaper/releases) · [Gitee 国内下载](https://gitee.com/Hyman25/mybingwallpaper/releases)
 
-当前稳定版为 **v1.0.7**。桌面端支持跟随系统外观、历史年月快速选择、每日自动换壁纸，以及在应用内检查并下载签名校验的更新。以下截图来自 macOS 版 v1.0.0；Windows 版功能相同，系统控件外观可能略有差异。
+当前稳定版为 **v1.0.8**。桌面端支持跟随系统外观、历史年月快速选择、每日自动换壁纸，以及在应用内检查并下载签名校验的更新。以下截图来自 macOS 版 v1.0.0；Windows 版功能相同，系统控件外观可能略有差异。
 
 ## 界面预览
 

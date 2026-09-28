@@ -134,13 +134,14 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.0.7");
+  const [appVersion, setAppVersion] = useState("1.0.8");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateCheck | null>(null);
   const [updateFeedback, setUpdateFeedback] = useState<UpdateFeedback | null>(null);
   const wallpaperRequest = useRef(0);
+  const lastAutomaticRefreshDate = useRef<string | null>(null);
   const wallpaperRef = useRef<Wallpaper | null>(null);
   const galleryStageRef = useRef<HTMLElement>(null);
   const galleryCache = useRef(new Map<string, { records: Wallpaper[]; loadedAt: number }>());
@@ -329,7 +330,10 @@ function App() {
     };
 
     const refreshDateAndWallpaper = () => {
-      syncToday();
+      const currentDate = formatDateKey(new Date());
+      syncToday(currentDate);
+      if (lastAutomaticRefreshDate.current === currentDate) return;
+      lastAutomaticRefreshDate.current = currentDate;
       refreshWallpaper();
     };
 

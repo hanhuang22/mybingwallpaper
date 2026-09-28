@@ -352,12 +352,19 @@ fn dialog_directory(preferred: &Path) -> Result<PathBuf, String> {
     dirs::home_dir().ok_or_else(|| "无法定位可选的文件夹".to_string())
 }
 
-fn should_reapply_cached_wallpaper(
-    last_auto_update: Option<&str>,
-    today: &str,
-    cached_file_exists: bool,
-) -> bool {
-    last_auto_update == Some(today) && cached_file_exists
+fn should_skip_auto_update(last_auto_update: Option<&str>, today: &str) -> bool {
+    last_auto_update == Some(today)
+}
+
+fn wallpaper_cache_path(cache: &Path, date: &str, image_url: &str) -> PathBuf {
+    // A different image for the same date must have a different file URL.
+    // macOS may keep displaying the previous image when a desktop image file is overwritten.
+    let fingerprint = image_url
+        .bytes()
+        .fold(0xcbf29ce484222325_u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+        });
+    cache.join(format!("{date}-{fingerprint:016x}.jpg"))
 }
 
 fn latest_cached_wallpaper(cache: &Path) -> Option<PathBuf> {
@@ -452,11 +459,17 @@ async fn apply_wallpaper(
     set_lock_screen: bool,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    let _update_guard = state.auto_update_lock.lock().await;
     let date = validate_date(&date)?;
-    let path = state.wallpaper_cache.join(format!("{date}.jpg"));
+    let path = wallpaper_cache_path(&state.wallpaper_cache, &date, &image_url);
     download_image(&state.client, &image_url, &path).await?;
     platform::set_desktop_wallpaper(&path)?;
     remember_active_wallpaper(&state, &path)?;
+    *state
+        .last_auto_update
+        .lock()
+        .map_err(|_| "自动更新状态不可用".to_string())? =
+        Some(Local::now().format("%Y-%m-%d").to_string());
     if set_lock_screen {
         platform::set_lock_screen_wallpaper(&path)?;
     }
@@ -809,26 +822,15 @@ async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()
         return Ok(());
     }
     let today = Local::now().format("%Y-%m-%d").to_string();
-    let path = cache.join(format!("{today}.jpg"));
-    let already_updated_today = guard
+    let last_auto_update = guard
         .lock()
         .map_err(|_| "更新状态不可用".to_string())?
-        .as_deref()
-        == Some(&today);
-    if should_reapply_cached_wallpaper(
-        already_updated_today.then_some(today.as_str()),
-        &today,
-        path.is_file(),
-    ) {
-        platform::set_desktop_wallpaper(&path)?;
-        {
-            let state = app.state::<AppState>();
-            remember_active_wallpaper(&state, &path)?;
-        }
-        let _ = app.emit("auto-update-complete", &today);
+        .clone();
+    if should_skip_auto_update(last_auto_update.as_deref(), &today) {
         return Ok(());
     }
     let wallpaper = fetch_wallpaper(&client, &today).await?;
+    let path = wallpaper_cache_path(&cache, &today, &wallpaper.image_url);
     download_image(&client, &wallpaper.image_url, &path).await?;
     platform::set_desktop_wallpaper(&path)?;
     let lock_screen_warning = if cfg!(target_os = "windows") && settings.lock_screen {
@@ -1027,9 +1029,10 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        effective_save_directory, parse_version, should_reapply_cached_wallpaper,
-        trusted_external_url, validate_month, Settings,
+        effective_save_directory, parse_version, should_skip_auto_update, trusted_external_url,
+        validate_month, wallpaper_cache_path, Settings,
     };
+    use std::path::Path;
 
     #[test]
     fn accepts_only_real_archive_months() {
@@ -1040,26 +1043,26 @@ mod tests {
     }
 
     #[test]
-    fn reuses_todays_cached_wallpaper_for_a_refresh() {
-        assert!(should_reapply_cached_wallpaper(
-            Some("2026-09-22"),
-            "2026-09-22",
-            true,
-        ));
+    fn does_not_restore_todays_auto_wallpaper_after_a_manual_choice() {
+        assert!(should_skip_auto_update(Some("2026-09-22"), "2026-09-22"));
     }
 
     #[test]
-    fn downloads_when_the_date_changed_or_the_cache_is_missing() {
-        assert!(!should_reapply_cached_wallpaper(
-            Some("2026-09-21"),
-            "2026-09-22",
-            true,
-        ));
-        assert!(!should_reapply_cached_wallpaper(
-            Some("2026-09-22"),
-            "2026-09-22",
-            false,
-        ));
+    fn auto_updates_again_on_the_next_day() {
+        assert!(!should_skip_auto_update(Some("2026-09-21"), "2026-09-22"));
+        assert!(!should_skip_auto_update(None, "2026-09-22"));
+    }
+
+    #[test]
+    fn cache_path_changes_when_a_dates_image_is_corrected() {
+        let cache = Path::new("wallpaper-cache");
+        let old = wallpaper_cache_path(cache, "2026-09-28", "https://bing.com/DecoCrab.jpg");
+        let corrected = wallpaper_cache_path(cache, "2026-09-28", "https://bing.com/AmberHall.jpg");
+        assert_ne!(old, corrected);
+        assert_eq!(
+            corrected,
+            wallpaper_cache_path(cache, "2026-09-28", "https://bing.com/AmberHall.jpg")
+        );
     }
 
     #[test]
