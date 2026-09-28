@@ -27,7 +27,7 @@
   --calendar-selection-dot: #fff;
   --primary-button: #f8fafc;
   --primary-button-text: #111827;
-  --gallery-background: rgba(15,23,37,.97);
+  --gallery-background: rgba(20,28,43,.84);
 }
 
 :root[data-theme="light"] {
@@ -54,7 +54,7 @@
   --calendar-selection-dot: #466894;
   --primary-button: #202a3c;
   --primary-button-text: #fff;
-  --gallery-background: rgba(246,249,253,.97);
+  --gallery-background: rgba(255,255,255,.84);
 }
 
 * { box-sizing: border-box; }
@@ -219,7 +219,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   flex-direction: column;
   color: var(--text-primary);
   background: var(--gallery-background);
-  backdrop-filter: blur(28px);
+  backdrop-filter: blur(36px) saturate(.8);
   animation: reveal .24s ease both;
 }
 .month-gallery-heading {
