@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   CalendarDays,
+  CalendarCheck2,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -829,17 +830,19 @@ function App() {
           <button className="icon-button" type="button" aria-label="后一天" disabled={selectedDate >= today} onClick={() => selectDockDate(addDays(selectedDate, 1))}>
             <ChevronRight size={20} />
           </button>
-          <button className="text-button" type="button" onClick={() => selectDockDate(today)}>今天</button>
-          <button className={`text-button gallery-toggle${galleryOpen ? " active" : ""}`} type="button" aria-pressed={galleryOpen} title={galleryOpen ? "返回单图" : "查看当月缩略图"} onClick={toggleGallery}>
-            {galleryOpen ? <ImageIcon size={17} /> : <LayoutGrid size={17} />}{galleryOpen ? "单图" : "月览"}
+          <button className="text-button today-button" type="button" aria-label="今天" title="跳转到今天" onClick={() => selectDockDate(today)}>
+            <CalendarCheck2 className="today-icon" size={18} /><span className="dock-navigation-label">今天</span>
+          </button>
+          <button className={`text-button gallery-toggle${galleryOpen ? " active" : ""}`} type="button" aria-label={galleryOpen ? "返回单图" : "查看当月缩略图"} aria-pressed={galleryOpen} title={galleryOpen ? "返回单图" : "查看当月缩略图"} onClick={toggleGallery}>
+            {galleryOpen ? <ImageIcon size={17} /> : <LayoutGrid size={17} />}<span className="dock-navigation-label">{galleryOpen ? "单图" : "月览"}</span>
           </button>
         </div>
         <div className="primary-actions">
-          <button className="button secondary" type="button" disabled={!wallpaper || Boolean(action)} onClick={() => selectDockDate(randomDate())}>
-            <Shuffle size={17} /> 随机一张
+          <button className="button secondary compact-action" type="button" aria-label="随机一张" title="随机查看一张壁纸" disabled={!wallpaper || Boolean(action)} onClick={() => selectDockDate(randomDate())}>
+            <Shuffle size={17} /><span className="dock-action-label">随机一张</span>
           </button>
-          <button className="button secondary" type="button" title={settings.saveWithoutPrompt ? "保存到设置中的原图保存位置" : "选择位置和文件名后保存"} disabled={galleryOpen || !wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={saveWallpaper}>
-            <Download size={17} /> 保存原图
+          <button className="button secondary compact-action" type="button" aria-label="保存原图" title={settings.saveWithoutPrompt ? "保存到设置中的原图保存位置" : "选择位置和文件名后保存"} disabled={galleryOpen || !wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={saveWallpaper}>
+            <Download size={17} /><span className="dock-action-label">保存原图</span>
           </button>
           <button className="button primary" type="button" disabled={galleryOpen || !wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={applyWallpaper}>
             <MonitorDown size={18} /> 设为壁纸
