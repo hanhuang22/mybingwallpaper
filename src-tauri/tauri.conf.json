@@ -16,7 +16,7 @@
         "title": "必应壁纸",
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "width": 1100,
+        "width": 1000,
         "height": 720,
         "minWidth": 720,
         "minHeight": 540,
