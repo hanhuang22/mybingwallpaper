@@ -724,6 +724,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 
 @media (max-width: 790px) {
   .date-navigation .today-button, .date-navigation .gallery-toggle { width: 38px; height: 38px; padding: 0; justify-content: center; }
+  .date-navigation .today-button { display: grid; place-items: center; }
   .date-navigation .dock-navigation-label { display: none; }
   .today-icon { display: block; }
 }
