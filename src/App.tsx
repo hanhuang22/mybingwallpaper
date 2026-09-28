@@ -14,6 +14,7 @@ import {
   Globe2,
   ImageIcon,
   Info,
+  LayoutGrid,
   LoaderCircle,
   Moon,
   MonitorDown,
@@ -26,11 +27,14 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DatePicker } from "./components/DatePicker";
+import { MonthGallery } from "./components/MonthGallery";
 import { WindowsTitleBar } from "./components/WindowsTitleBar";
 import { preloadWallpaperImage } from "./lib/image";
 import {
   addDays,
+  addMonths,
   defaultSettings,
+  fetchMonthWallpapersInBrowser,
   fetchWallpaperInBrowser,
   formatDateKey,
   parseTitle,
@@ -48,6 +52,15 @@ interface UpdateCheck {
   latestVersion: string;
   updateAvailable: boolean;
   readyToRestart: boolean;
+}
+
+interface GalleryZoom {
+  imageUrl: string;
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+  expanded: boolean;
 }
 
 const OFFICIAL_SITE = "https://hanhuang22.github.io/mybingwallpaper/";
@@ -78,6 +91,13 @@ async function getWallpaper(date: string): Promise<Wallpaper> {
   return fetchWallpaperInBrowser(date);
 }
 
+async function getMonthWallpapers(month: string): Promise<Wallpaper[]> {
+  if (isTauri()) {
+    return invoke<Wallpaper[]>("get_month_wallpapers", { month: month.replace("-", "") });
+  }
+  return fetchMonthWallpapersInBrowser(month);
+}
+
 function App() {
   const [{ today, selectedDate }, setDateNavigation] = useState(() => {
     const currentDate = formatDateKey(new Date());
@@ -85,6 +105,15 @@ function App() {
   });
   const [wallpaper, setWallpaper] = useState<Wallpaper | null>(null);
   const [outgoingWallpaper, setOutgoingWallpaper] = useState<Wallpaper | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryMonth, setGalleryMonth] = useState(() => formatDateKey(new Date()).slice(0, 7));
+  const [galleryRecords, setGalleryRecords] = useState<Wallpaper[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState("");
+  const [gallerySelectionError, setGallerySelectionError] = useState("");
+  const [galleryReloadId, setGalleryReloadId] = useState(0);
+  const [galleryPendingDate, setGalleryPendingDate] = useState<string | null>(null);
+  const [galleryZoom, setGalleryZoom] = useState<GalleryZoom | null>(null);
   const [action, setAction] = useState<Action>("loading");
   const [message, setMessage] = useState("正在载入今日壁纸…");
   const [error, setError] = useState("");
@@ -103,7 +132,7 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.0.5");
+  const [appVersion, setAppVersion] = useState("1.0.6");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
@@ -111,6 +140,11 @@ function App() {
   const [updateFeedback, setUpdateFeedback] = useState<UpdateFeedback | null>(null);
   const wallpaperRequest = useRef(0);
   const wallpaperRef = useRef<Wallpaper | null>(null);
+  const galleryStageRef = useRef<HTMLElement>(null);
+  const galleryCache = useRef(new Map<string, { records: Wallpaper[]; loadedAt: number }>());
+  const gallerySelectionId = useRef(0);
+  const gallerySkipDate = useRef<string | null>(null);
+  const galleryZoomTimer = useRef<number | null>(null);
   const settingsOpenRef = useRef(settingsOpen);
   const updateStatusResetTimer = useRef<number | null>(null);
 
@@ -160,13 +194,31 @@ function App() {
     if (!updateInfo?.updateAvailable && !downloadingUpdate) clearUpdateStatus();
   }, [clearUpdateStatus, downloadingUpdate, updateInfo?.updateAvailable]);
 
+  const closeGallery = useCallback(() => {
+    gallerySelectionId.current += 1;
+    if (galleryZoomTimer.current !== null) {
+      window.clearTimeout(galleryZoomTimer.current);
+      galleryZoomTimer.current = null;
+    }
+    setGalleryZoom(null);
+    setGalleryPendingDate(null);
+    setGallerySelectionError("");
+    setGalleryOpen(false);
+  }, []);
+
   useEffect(() => {
     if (!isTauri()) return;
-    const listener = listen("main-window-reset-view", closeSettings);
+    const listener = listen("main-window-reset-view", () => {
+      closeSettings();
+      closeGallery();
+    });
     return () => { void listener.then((unlisten) => unlisten()); };
-  }, [closeSettings]);
+  }, [closeGallery, closeSettings]);
 
   useEffect(() => () => cancelUpdateStatusReset(), [cancelUpdateStatusReset]);
+  useEffect(() => () => {
+    if (galleryZoomTimer.current !== null) window.clearTimeout(galleryZoomTimer.current);
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -193,14 +245,14 @@ function App() {
     setWallpaper(next);
   }, []);
 
-  const loadWallpaper = useCallback(async (date: string) => {
+  const loadWallpaper = useCallback(async (date: string, knownRecord?: Wallpaper) => {
     const request = wallpaperRequest.current + 1;
     wallpaperRequest.current = request;
     setAction("loading");
     setError("");
     setMessage("正在载入壁纸…");
     try {
-      const next = await getWallpaper(date);
+      const next = knownRecord ?? await getWallpaper(date);
       if (request !== wallpaperRequest.current) return null;
       setMessage("正在加载壁纸图片…");
       await preloadWallpaperImage(next.imageUrl);
@@ -221,8 +273,46 @@ function App() {
   }, [showWallpaper]);
 
   useEffect(() => {
+    if (!galleryOpen) return;
+    const cached = galleryCache.current.get(galleryMonth);
+    if (cached && (galleryMonth < today.slice(0, 7) || Date.now() - cached.loadedAt < 5 * 60_000)) {
+      setGalleryRecords(cached.records);
+      setGalleryLoading(false);
+      setGalleryError("");
+      return;
+    }
+
+    let active = true;
+    setGalleryLoading(true);
+    setGalleryRecords([]);
+    setGalleryError("");
+    void getMonthWallpapers(galleryMonth)
+      .then((records) => {
+        if (!active) return;
+        if (records.length === 0) throw new Error("这个月暂时没有壁纸");
+        galleryCache.current.delete(galleryMonth);
+        galleryCache.current.set(galleryMonth, { records, loadedAt: Date.now() });
+        if (galleryCache.current.size > 3) {
+          const oldest = galleryCache.current.keys().next().value;
+          if (oldest) galleryCache.current.delete(oldest);
+        }
+        setGalleryRecords(records);
+      })
+      .catch((reason) => {
+        if (active) setGalleryError(`月览加载失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      })
+      .finally(() => { if (active) setGalleryLoading(false); });
+    return () => { active = false; };
+  }, [galleryMonth, galleryOpen, galleryReloadId, today]);
+
+  useEffect(() => {
     setDetailsExpanded(false);
     setDetailsHovered(false);
+    if (gallerySkipDate.current === selectedDate) {
+      gallerySkipDate.current = null;
+      return;
+    }
+    gallerySkipDate.current = null;
     void loadWallpaper(selectedDate);
   }, [loadWallpaper, selectedDate]);
 
@@ -544,6 +634,81 @@ function App() {
     }
   };
 
+  const toggleGallery = () => {
+    if (galleryOpen) {
+      closeGallery();
+      return;
+    }
+    const month = selectedDate.slice(0, 7);
+    const cached = galleryCache.current.get(month);
+    const fresh = cached && (month < today.slice(0, 7) || Date.now() - cached.loadedAt < 5 * 60_000);
+    setGalleryMonth(month);
+    setGalleryRecords(fresh ? cached.records : []);
+    setGalleryLoading(!fresh);
+    setGalleryError("");
+    setGallerySelectionError("");
+    setGalleryOpen(true);
+  };
+
+  const moveGalleryMonth = (amount: number) => {
+    const month = addMonths(galleryMonth, amount);
+    if (month < "2010-01" || month > today.slice(0, 7)) return;
+    setGalleryMonth(month);
+    setGalleryRecords([]);
+    setGalleryLoading(true);
+    setGallerySelectionError("");
+  };
+
+  const selectDockDate = (date: string) => {
+    if (galleryOpen) closeGallery();
+    setSelectedDate(date);
+  };
+
+  const selectGalleryWallpaper = async (record: Wallpaper, card: HTMLButtonElement) => {
+    const selectionId = gallerySelectionId.current + 1;
+    gallerySelectionId.current = selectionId;
+    setGalleryPendingDate(record.date);
+    setGallerySelectionError("");
+    if (record.date !== selectedDate) {
+      gallerySkipDate.current = record.date;
+      setSelectedDate(record.date);
+    }
+
+    const next = wallpaperRef.current?.date === record.date && wallpaperRef.current.imageUrl === record.imageUrl
+      ? wallpaperRef.current
+      : await loadWallpaper(record.date, record);
+    if (selectionId !== gallerySelectionId.current) return;
+    if (!next) {
+      setGalleryPendingDate(null);
+      setGallerySelectionError("原图加载失败，请重试或选择其他日期");
+      return;
+    }
+
+    const stage = galleryStageRef.current;
+    if (!stage || !card.isConnected) {
+      closeGallery();
+      return;
+    }
+    const stageRect = stage.getBoundingClientRect();
+    const cardRect = (card.querySelector("img") ?? card).getBoundingClientRect();
+    setGalleryZoom({
+      imageUrl: next.imageUrl,
+      x: cardRect.left - stageRect.left,
+      y: cardRect.top - stageRect.top,
+      scaleX: cardRect.width / stageRect.width,
+      scaleY: cardRect.height / stageRect.height,
+      expanded: false,
+    });
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      if (selectionId !== gallerySelectionId.current) return;
+      setGalleryZoom((current) => current ? { ...current, expanded: true } : null);
+      galleryZoomTimer.current = window.setTimeout(
+        () => { if (selectionId === gallerySelectionId.current) closeGallery(); },
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 60 : 540,
+      );
+    }));
+  };
+
   const title = parseTitle(wallpaper?.title ?? "必应每日壁纸");
   const showDetails = detailsExpanded || detailsHovered;
 
@@ -564,7 +729,7 @@ function App() {
       <div className="ambient" aria-hidden="true" />
       {platform === "macos" && <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />}
       {platform === "windows" && <WindowsTitleBar />}
-      <section className="wallpaper-stage" aria-busy={action === "loading"}>
+      <section className="wallpaper-stage" ref={galleryStageRef} aria-busy={action === "loading" || galleryLoading}>
         {outgoingWallpaper && (
           <img className="wallpaper-image outgoing" src={outgoingWallpaper.imageUrl} alt="" aria-hidden="true" />
         )}
@@ -609,6 +774,40 @@ function App() {
             )}
           </div>
         </div>
+        {galleryOpen && (
+          <MonthGallery
+            month={galleryMonth}
+            minimumMonth="2010-01"
+            maximumMonth={today.slice(0, 7)}
+            today={today}
+            selectedDate={selectedDate}
+            records={galleryRecords}
+            loading={galleryLoading}
+            error={galleryError}
+            selectionError={gallerySelectionError}
+            pendingDate={galleryPendingDate}
+            onMoveMonth={moveGalleryMonth}
+            onRetry={() => {
+              galleryCache.current.delete(galleryMonth);
+              setGalleryReloadId((current) => current + 1);
+            }}
+            onSelect={(record, card) => void selectGalleryWallpaper(record, card)}
+          />
+        )}
+        {galleryZoom && (
+          <div
+            className="month-gallery-zoom"
+            style={{
+              transform: galleryZoom.expanded
+                ? "translate(0, 0) scale(1)"
+                : `translate(${galleryZoom.x}px, ${galleryZoom.y}px) scale(${galleryZoom.scaleX}, ${galleryZoom.scaleY})`,
+              borderRadius: galleryZoom.expanded ? undefined : 12,
+            }}
+            aria-hidden="true"
+          >
+            <img src={galleryZoom.imageUrl} alt="" />
+          </div>
+        )}
         {(action === "loading" || action === "applying" || action === "saving") && (
           <div className="loading-indicator" role="status">
             <LoaderCircle className="spin" size={18} /> {message}
@@ -618,28 +817,31 @@ function App() {
 
       <section className="control-dock" aria-label="壁纸操作">
         <div className="date-navigation">
-          <button className="icon-button" type="button" aria-label="前一天" onClick={() => setSelectedDate(addDays(selectedDate, -1))}>
+          <button className="icon-button" type="button" aria-label="前一天" onClick={() => selectDockDate(addDays(selectedDate, -1))}>
             <ChevronLeft size={20} />
           </button>
           <DatePicker
             value={selectedDate}
             minimum="2010-01-01"
             maximum={today}
-            onChange={setSelectedDate}
+            onChange={selectDockDate}
           />
-          <button className="icon-button" type="button" aria-label="后一天" disabled={selectedDate >= today} onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
+          <button className="icon-button" type="button" aria-label="后一天" disabled={selectedDate >= today} onClick={() => selectDockDate(addDays(selectedDate, 1))}>
             <ChevronRight size={20} />
           </button>
-          <button className="text-button" type="button" onClick={() => setSelectedDate(today)}>今天</button>
+          <button className="text-button" type="button" onClick={() => selectDockDate(today)}>今天</button>
+          <button className={`text-button gallery-toggle${galleryOpen ? " active" : ""}`} type="button" aria-pressed={galleryOpen} title={galleryOpen ? "返回单图" : "查看当月缩略图"} onClick={toggleGallery}>
+            {galleryOpen ? <ImageIcon size={17} /> : <LayoutGrid size={17} />}{galleryOpen ? "单图" : "月览"}
+          </button>
         </div>
         <div className="primary-actions">
-          <button className="button secondary" type="button" disabled={!wallpaper || Boolean(action)} onClick={() => setSelectedDate(randomDate())}>
+          <button className="button secondary" type="button" disabled={!wallpaper || Boolean(action)} onClick={() => selectDockDate(randomDate())}>
             <Shuffle size={17} /> 随机一张
           </button>
-          <button className="button secondary" type="button" title={settings.saveWithoutPrompt ? "保存到设置中的原图保存位置" : "选择位置和文件名后保存"} disabled={!wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={saveWallpaper}>
+          <button className="button secondary" type="button" title={settings.saveWithoutPrompt ? "保存到设置中的原图保存位置" : "选择位置和文件名后保存"} disabled={galleryOpen || !wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={saveWallpaper}>
             <Download size={17} /> 保存原图
           </button>
-          <button className="button primary" type="button" disabled={!wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={applyWallpaper}>
+          <button className="button primary" type="button" disabled={galleryOpen || !wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={applyWallpaper}>
             <MonitorDown size={18} /> 设为壁纸
           </button>
           <button className="icon-button dock-settings" type="button" aria-label="打开设置" title="设置" onClick={() => setSettingsOpen(true)}>

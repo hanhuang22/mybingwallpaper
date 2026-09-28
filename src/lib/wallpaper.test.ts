@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  addMonths,
   dateToApiKey,
   parseTitle,
   randomDate,
@@ -39,6 +40,8 @@ describe("wallpaper helpers", () => {
 
   it("moves across month boundaries safely", () => {
     expect(addDays("2026-01-31", 1)).toBe("2026-02-01");
+    expect(addMonths("2026-01", 1)).toBe("2026-02");
+    expect(addMonths("2026-01", -1)).toBe("2025-12");
   });
 
   it("keeps random dates inside the requested interval", () => {

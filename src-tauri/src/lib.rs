@@ -121,6 +121,15 @@ fn validate_date(date: &str) -> Result<String, String> {
         .map_err(|_| "日期格式无效".to_string())
 }
 
+fn validate_month(month: &str) -> Result<String, String> {
+    if month.len() != 6 || !month.bytes().all(|digit| digit.is_ascii_digit()) {
+        return Err("月份格式无效".to_string());
+    }
+    NaiveDate::parse_from_str(&format!("{month}01"), "%Y%m%d")
+        .map(|_| month.to_string())
+        .map_err(|_| "月份格式无效".to_string())
+}
+
 fn image_url(url: &str) -> Result<Url, String> {
     let parsed = Url::parse(url).map_err(|_| "壁纸地址无效".to_string())?;
     if parsed.scheme() != "https" {
@@ -225,10 +234,10 @@ fn trusted_external_url(url: &str) -> Result<Url, String> {
     Ok(parsed)
 }
 
-async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
-    let date = validate_date(date)?;
-    let key = date.replace('-', "");
-    let month = &key[..6];
+async fn fetch_month_archive(
+    client: &Client,
+    month: &str,
+) -> Result<HashMap<String, RemoteWallpaper>, String> {
     let response = client
         .get(format!("{ARCHIVE_BASE}/{month}.json"))
         .send()
@@ -236,10 +245,16 @@ async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, Strin
         .map_err(|error| format!("获取壁纸信息失败：{error}"))?
         .error_for_status()
         .map_err(|error| format!("壁纸数据服务异常：{error}"))?;
-    let records = response
+    response
         .json::<HashMap<String, RemoteWallpaper>>()
         .await
-        .map_err(|error| format!("壁纸数据解析失败：{error}"))?;
+        .map_err(|error| format!("壁纸数据解析失败：{error}"))
+}
+
+async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
+    let date = validate_date(date)?;
+    let key = date.replace('-', "");
+    let records = fetch_month_archive(client, &key[..6]).await?;
     let record = records
         .get(&key)
         .ok_or_else(|| "没有找到这一天的壁纸".to_string())?;
@@ -250,6 +265,28 @@ async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, Strin
         description: record.imgdesc.clone(),
         image_url: record.imgurl.clone(),
     })
+}
+
+async fn fetch_month_wallpapers(client: &Client, month: &str) -> Result<Vec<Wallpaper>, String> {
+    let month = validate_month(month)?;
+    let records = fetch_month_archive(client, &month).await?;
+    let mut wallpapers = Vec::with_capacity(records.len());
+    for (key, record) in records {
+        if !key.starts_with(&month) || key.len() != 8 || image_url(&record.imgurl).is_err() {
+            continue;
+        }
+        let Ok(date) = NaiveDate::parse_from_str(&key, "%Y%m%d") else {
+            continue;
+        };
+        wallpapers.push(Wallpaper {
+            date: date.format("%Y-%m-%d").to_string(),
+            title: record.imgtitle,
+            description: record.imgdesc,
+            image_url: record.imgurl,
+        });
+    }
+    wallpapers.sort_by(|left, right| left.date.cmp(&right.date));
+    Ok(wallpapers)
 }
 
 async fn download_image(client: &Client, image: &str, destination: &Path) -> Result<(), String> {
@@ -398,6 +435,14 @@ fn watch_display_reconnections<R: Runtime>(app: tauri::AppHandle<R>) {
 #[tauri::command]
 async fn get_wallpaper(date: String, state: State<'_, AppState>) -> Result<Wallpaper, String> {
     fetch_wallpaper(&state.client, &date).await
+}
+
+#[tauri::command]
+async fn get_month_wallpapers(
+    month: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Wallpaper>, String> {
+    fetch_month_wallpapers(&state.client, &month).await
 }
 
 #[tauri::command]
@@ -948,6 +993,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_wallpaper,
+            get_month_wallpapers,
             apply_wallpaper,
             save_wallpaper,
             load_settings,
@@ -973,8 +1019,16 @@ pub fn run() {
 mod tests {
     use super::{
         effective_save_directory, parse_version, should_reapply_cached_wallpaper,
-        trusted_external_url, Settings,
+        trusted_external_url, validate_month, Settings,
     };
+
+    #[test]
+    fn accepts_only_real_archive_months() {
+        assert_eq!(validate_month("202609").unwrap(), "202609");
+        assert!(validate_month("202613").is_err());
+        assert!(validate_month("2026-09").is_err());
+        assert!(validate_month("202609/extra").is_err());
+    }
 
     #[test]
     fn reuses_todays_cached_wallpaper_for_a_refresh() {
