@@ -26,7 +26,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DatePicker } from "./components/DatePicker";
 import { MonthGallery } from "./components/MonthGallery";
 import { WindowsTitleBar } from "./components/WindowsTitleBar";
@@ -40,7 +40,9 @@ import {
   formatDateKey,
   parseTitle,
   randomDate,
+  resolveMonthWallpapers,
   syncDateNavigation,
+  withTodayFallback,
   type Settings,
   type Wallpaper,
 } from "./lib/wallpaper";
@@ -112,6 +114,12 @@ function App() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryMonth, setGalleryMonth] = useState(() => formatDateKey(new Date()).slice(0, 7));
   const [galleryRecords, setGalleryRecords] = useState<Wallpaper[]>([]);
+  const galleryDisplayRecords = useMemo(
+    () => galleryMonth === today.slice(0, 7)
+      ? withTodayFallback(galleryRecords, today, wallpaper)
+      : galleryRecords,
+    [galleryMonth, galleryRecords, today, wallpaper],
+  );
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [galleryError, setGalleryError] = useState("");
   const [gallerySelectionError, setGallerySelectionError] = useState("");
@@ -138,7 +146,7 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.0.11");
+  const [appVersion, setAppVersion] = useState("1.1.0");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
@@ -309,16 +317,20 @@ function App() {
     setGalleryRecords([]);
     setGalleryError("");
     void getMonthWallpapers(galleryMonth, forceRefresh)
-      .then((records) => {
+      .then(async (records) => {
         if (!active) return;
-        if (records.length === 0) throw new Error("这个月暂时没有壁纸");
+        const visibleRecords = await resolveMonthWallpapers(
+          galleryMonth, today, records, wallpaperRef.current, () => getWallpaper(today),
+        );
+        if (!active) return;
+        if (visibleRecords.length === 0) throw new Error("这个月暂时没有壁纸");
         galleryCache.current.delete(galleryMonth);
-        galleryCache.current.set(galleryMonth, { records, loadedAt: Date.now() });
+        galleryCache.current.set(galleryMonth, { records: visibleRecords, loadedAt: Date.now() });
         if (galleryCache.current.size > 3) {
           const oldest = galleryCache.current.keys().next().value;
           if (oldest) galleryCache.current.delete(oldest);
         }
-        setGalleryRecords(records);
+        setGalleryRecords(visibleRecords);
       })
       .catch((reason) => {
         if (active) setGalleryError(`月览加载失败：${reason instanceof Error ? reason.message : String(reason)}`);
@@ -855,7 +867,7 @@ function App() {
             maximumMonth={today.slice(0, 7)}
             today={today}
             selectedDate={selectedDate}
-            records={galleryRecords}
+            records={galleryDisplayRecords}
             loading={galleryLoading}
             error={galleryError}
             selectionError={gallerySelectionError}

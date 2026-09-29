@@ -116,6 +116,25 @@ export async function fetchWallpaperInBrowser(date: string, forceRefresh = false
   return record;
 }
 
+export function withTodayFallback(records: Wallpaper[], today: string, live: Wallpaper | null): Wallpaper[] {
+  if (!live || live.date !== today || records.some((record) => record.date === today)) return records;
+  return [...records, live].sort((left, right) => left.date.localeCompare(right.date));
+}
+
+export async function resolveMonthWallpapers(
+  month: string,
+  today: string,
+  archived: Wallpaper[],
+  shownWallpaper: Wallpaper | null,
+  fetchToday: () => Promise<Wallpaper>,
+): Promise<Wallpaper[]> {
+  if (month !== today.slice(0, 7) || archived.some((record) => record.date === today)) return archived;
+  const live = shownWallpaper?.date === today
+    ? shownWallpaper
+    : await fetchToday().catch(() => null);
+  return withTodayFallback(archived, today, live);
+}
+
 export async function fetchMonthWallpapersInBrowser(month: string, forceRefresh = false): Promise<Wallpaper[]> {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("月份格式无效");
   const key = month.replace("-", "");

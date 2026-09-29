@@ -6,7 +6,9 @@ import {
   fetchMonthWallpapersInBrowser,
   parseTitle,
   randomDate,
+  resolveMonthWallpapers,
   syncDateNavigation,
+  withTodayFallback,
 } from "./wallpaper";
 
 describe("wallpaper helpers", () => {
@@ -17,6 +19,30 @@ describe("wallpaper helpers", () => {
     vi.stubGlobal("fetch", fetchMock);
     await fetchMonthWallpapersInBrowser("2026-09", true);
     expect(fetchMock).toHaveBeenCalledWith("/archive/month/202609.json", { cache: "reload" });
+  });
+
+  it("shows a live today record only until the month JSON contains one", () => {
+    const yesterday = { date: "2026-09-29", title: "昨日", description: "", imageUrl: "https://cn.bing.com/yesterday.jpg" };
+    const live = { date: "2026-09-30", title: "Bing 今日", description: "", imageUrl: "https://cn.bing.com/live.jpg" };
+    const archived = { ...live, title: "OSS 今日", imageUrl: "https://cn.bing.com/archive.jpg" };
+    expect(withTodayFallback([yesterday], live.date, live)).toEqual([yesterday, live]);
+    expect(withTodayFallback([yesterday, archived], live.date, live)).toEqual([yesterday, archived]);
+    expect(withTodayFallback([yesterday], "2026-10-01", live)).toEqual([yesterday]);
+  });
+
+  it("only fetches Bing for a missing date in the current month", async () => {
+    const live = { date: "2026-09-30", title: "Bing 今日", description: "", imageUrl: "https://cn.bing.com/live.jpg" };
+    const archived = { ...live, title: "OSS 今日" };
+    const fetchToday = vi.fn().mockResolvedValue(live);
+    expect(await resolveMonthWallpapers("2026-09", live.date, [archived], null, fetchToday)).toEqual([archived]);
+    expect(await resolveMonthWallpapers("2026-08", live.date, [], null, fetchToday)).toEqual([]);
+    expect(fetchToday).not.toHaveBeenCalled();
+    expect(await resolveMonthWallpapers("2026-09", live.date, [], live, fetchToday)).toEqual([live]);
+    expect(fetchToday).not.toHaveBeenCalled();
+    expect(await resolveMonthWallpapers("2026-09", live.date, [], null, fetchToday)).toEqual([live]);
+    expect(fetchToday).toHaveBeenCalledOnce();
+    fetchToday.mockRejectedValue(new Error("Bing 不可用"));
+    expect(await resolveMonthWallpapers("2026-09", live.date, [], null, fetchToday)).toEqual([]);
   });
 
   it("converts a UI date to the archive key", () => {
