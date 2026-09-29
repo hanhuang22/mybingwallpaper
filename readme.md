@@ -134,6 +134,7 @@ GitHub Actions 只构建 Windows x64 和 macOS Apple Silicon。推送 `v*` 标�
 ## 数据源
 
 - 月度元数据：`https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month/YYYYMM.json`
+- 桌面端把月度 JSON 缓存在应用缓存目录的 `archive-json/YYYYMM.json`，与图片缓存 `wallpapers/` 分开。单日浏览、月览和每日自动换壁纸共用这份缓存：历史月份直接复用；当月尚无今日壁纸或说明不完整时，每 5 分钟才重新请求一次。界面中的“重试”可强制重新请求；当天壁纸成功应用后，后台不再重复检查，次日再尝试。
 - 2010/01/01—2018/12/30 的历史图片数据来自 [bing.ee123.net](https://bing.ee123.net/)。
 - 之后的数据来自必应图片源；有 4K 原图时优先使用 4K 地址。
 

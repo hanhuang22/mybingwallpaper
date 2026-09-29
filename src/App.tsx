@@ -87,18 +87,18 @@ function compactDirectory(path: string) {
   return segments.length > 2 ? `…${separator}${segments.slice(-2).join(separator)}` : path;
 }
 
-async function getWallpaper(date: string): Promise<Wallpaper> {
+async function getWallpaper(date: string, forceRefresh = false): Promise<Wallpaper> {
   if (isTauri()) {
-    return invoke<Wallpaper>("get_wallpaper", { date });
+    return invoke<Wallpaper>("get_wallpaper", { date, forceRefresh });
   }
-  return fetchWallpaperInBrowser(date);
+  return fetchWallpaperInBrowser(date, forceRefresh);
 }
 
-async function getMonthWallpapers(month: string): Promise<Wallpaper[]> {
+async function getMonthWallpapers(month: string, forceRefresh = false): Promise<Wallpaper[]> {
   if (isTauri()) {
-    return invoke<Wallpaper[]>("get_month_wallpapers", { month: month.replace("-", "") });
+    return invoke<Wallpaper[]>("get_month_wallpapers", { month: month.replace("-", ""), forceRefresh });
   }
-  return fetchMonthWallpapersInBrowser(month);
+  return fetchMonthWallpapersInBrowser(month, forceRefresh);
 }
 
 function App() {
@@ -150,6 +150,7 @@ function App() {
   const selectedDateRef = useRef(selectedDate);
   const galleryStageRef = useRef<HTMLElement>(null);
   const galleryCache = useRef(new Map<string, { records: Wallpaper[]; loadedAt: number }>());
+  const galleryForceRefresh = useRef<string | null>(null);
   const gallerySelectionId = useRef(0);
   const gallerySkipDate = useRef<string | null>(null);
   const galleryZoomTimer = useRef<number | null>(null);
@@ -255,14 +256,14 @@ function App() {
     setWallpaper(next);
   }, []);
 
-  const loadWallpaper = useCallback(async (date: string, knownRecord?: Wallpaper) => {
+  const loadWallpaper = useCallback(async (date: string, knownRecord?: Wallpaper, forceRefresh = false) => {
     const request = wallpaperRequest.current + 1;
     wallpaperRequest.current = request;
     setAction("loading");
     setError("");
     setMessage("正在载入壁纸…");
     try {
-      const next = knownRecord ?? await getWallpaper(date);
+      const next = knownRecord ?? await getWallpaper(date, forceRefresh);
       if (request !== wallpaperRequest.current) return null;
       setMessage("正在加载壁纸图片…");
       await preloadWallpaperImage(next.imageUrl);
@@ -293,8 +294,10 @@ function App() {
 
   useEffect(() => {
     if (!galleryOpen) return;
+    const forceRefresh = galleryForceRefresh.current === galleryMonth;
+    galleryForceRefresh.current = null;
     const cached = galleryCache.current.get(galleryMonth);
-    if (cached && (galleryMonth < today.slice(0, 7) || Date.now() - cached.loadedAt < 5 * 60_000)) {
+    if (!forceRefresh && cached && (galleryMonth < today.slice(0, 7) || Date.now() - cached.loadedAt < 5 * 60_000)) {
       setGalleryRecords(cached.records);
       setGalleryLoading(false);
       setGalleryError("");
@@ -305,7 +308,7 @@ function App() {
     setGalleryLoading(true);
     setGalleryRecords([]);
     setGalleryError("");
-    void getMonthWallpapers(galleryMonth)
+    void getMonthWallpapers(galleryMonth, forceRefresh)
       .then((records) => {
         if (!active) return;
         if (records.length === 0) throw new Error("这个月暂时没有壁纸");
@@ -860,6 +863,7 @@ function App() {
             onMoveMonth={moveGalleryMonth}
             onRetry={() => {
               galleryCache.current.delete(galleryMonth);
+              galleryForceRefresh.current = galleryMonth;
               setGalleryReloadId((current) => current + 1);
             }}
             onSelect={(record, card) => void selectGalleryWallpaper(record, card)}
@@ -926,7 +930,7 @@ function App() {
       {toastText && toastText !== dismissedToast && (
         <div className={error ? "toast error" : "toast"} role={error ? "alert" : "status"}>
           <span className="toast-message">{toastText}</span>
-          {error && <button type="button" onClick={() => void loadWallpaper(selectedDate)}><RefreshCw size={15} />重试</button>}
+          {error && <button type="button" onClick={() => void loadWallpaper(selectedDate, undefined, true)}><RefreshCw size={15} />重试</button>}
           <button className="toast-dismiss" type="button" aria-label="关闭提示" title="关闭提示" onClick={() => setDismissedToast(toastText)}><X size={15} /></button>
         </div>
       )}

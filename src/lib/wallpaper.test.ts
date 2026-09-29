@@ -1,14 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addDays,
   addMonths,
   dateToApiKey,
+  fetchMonthWallpapersInBrowser,
   parseTitle,
   randomDate,
   syncDateNavigation,
 } from "./wallpaper";
 
 describe("wallpaper helpers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("bypasses the browser cache when a month is explicitly retried", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchMonthWallpapersInBrowser("2026-09", true);
+    expect(fetchMock).toHaveBeenCalledWith("/archive/month/202609.json", { cache: "reload" });
+  });
+
   it("converts a UI date to the archive key", () => {
     expect(dateToApiKey("2026-09-20")).toBe("20260920");
   });

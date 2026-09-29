@@ -9,7 +9,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -23,6 +23,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 use url::Url;
 
 const ARCHIVE_BASE: &str = "https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month";
+const INCOMPLETE_CURRENT_MONTH_TTL: Duration = Duration::from_secs(5 * 60);
 const GITEE_LATEST_RELEASE: &str =
     "https://gitee.com/api/v5/repos/Hyman25/mybingwallpaper/releases/latest";
 const GITHUB_LATEST_RELEASE: &str =
@@ -30,13 +31,20 @@ const GITHUB_LATEST_RELEASE: &str =
 struct AppState {
     client: Client,
     config_path: PathBuf,
+    daily_wallpaper_state_path: PathBuf,
     wallpaper_cache: PathBuf,
+    archive_cache: Arc<MonthArchiveCache>,
     active_wallpaper: Arc<Mutex<Option<PathBuf>>>,
-    last_auto_update: Arc<Mutex<Option<String>>>,
+    last_handled_wallpaper_date: Arc<Mutex<Option<String>>>,
     auto_update_lock: Arc<tokio::sync::Mutex<()>>,
     software_update_lock: Arc<tokio::sync::Mutex<()>>,
     pending_software_update: Arc<tokio::sync::Mutex<Option<PendingSoftwareUpdate>>>,
     quitting: Arc<std::sync::atomic::AtomicBool>,
+}
+
+struct MonthArchiveCache {
+    directory: PathBuf,
+    locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
 }
 
 struct PendingSoftwareUpdate {
@@ -54,7 +62,7 @@ struct Wallpaper {
     image_url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct RemoteWallpaper {
     date: Option<String>,
     imgtitle: String,
@@ -276,10 +284,101 @@ fn trusted_external_url(url: &str) -> Result<Url, String> {
     Ok(parsed)
 }
 
+fn current_month_cache_is_fresh(
+    month: &str,
+    records: &HashMap<String, RemoteWallpaper>,
+    modified: SystemTime,
+    now: SystemTime,
+    today: NaiveDate,
+) -> bool {
+    let current_month = today.format("%Y%m").to_string();
+    if month < current_month.as_str() {
+        return true;
+    }
+    if month > current_month.as_str() {
+        return false;
+    }
+    let today_key = today.format("%Y%m%d").to_string();
+    if records.get(&today_key).is_some_and(|record| {
+        !record.imgtitle.trim().is_empty()
+            && !record.imgdesc.trim().is_empty()
+            && image_url(&record.imgurl).is_ok()
+    }) {
+        return true;
+    }
+    now.duration_since(modified)
+        .is_ok_and(|age| age < INCOMPLETE_CURRENT_MONTH_TTL)
+}
+
+impl MonthArchiveCache {
+    fn new(directory: PathBuf) -> Self {
+        Self {
+            directory,
+            locks: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn path(&self, month: &str) -> PathBuf {
+        self.directory.join(format!("{month}.json"))
+    }
+
+    fn read(&self, month: &str) -> Option<(HashMap<String, RemoteWallpaper>, SystemTime)> {
+        let path = self.path(month);
+        let bytes = fs::read(&path).ok()?;
+        let records = serde_json::from_slice(&bytes).ok()?;
+        let modified = fs::metadata(path).ok()?.modified().ok()?;
+        Some((records, modified))
+    }
+
+    async fn get(
+        &self,
+        client: &Client,
+        month: &str,
+        force_refresh: bool,
+    ) -> Result<HashMap<String, RemoteWallpaper>, String> {
+        let month = validate_month(month)?;
+        let month_lock = {
+            let mut locks = self
+                .locks
+                .lock()
+                .map_err(|_| "壁纸缓存状态不可用".to_string())?;
+            locks
+                .entry(month.clone())
+                .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+                .clone()
+        };
+        let _guard = month_lock.lock().await;
+        let cached = self.read(&month);
+        if let Some((records, modified)) = &cached {
+            if !force_refresh
+                && current_month_cache_is_fresh(
+                    &month,
+                    records,
+                    *modified,
+                    SystemTime::now(),
+                    Local::now().date_naive(),
+                )
+            {
+                return Ok(records.clone());
+            }
+        }
+
+        match fetch_month_archive(client, &month).await {
+            Ok((records, bytes)) => {
+                if let Err(error) = fs::write(self.path(&month), bytes) {
+                    eprintln!("无法写入月度壁纸缓存：{error}");
+                }
+                Ok(records)
+            }
+            Err(error) => cached.map(|(records, _)| records).ok_or(error),
+        }
+    }
+}
+
 async fn fetch_month_archive(
     client: &Client,
     month: &str,
-) -> Result<HashMap<String, RemoteWallpaper>, String> {
+) -> Result<(HashMap<String, RemoteWallpaper>, Vec<u8>), String> {
     let response = client
         .get(format!("{ARCHIVE_BASE}/{month}.json"))
         .send()
@@ -287,10 +386,13 @@ async fn fetch_month_archive(
         .map_err(|error| format!("获取壁纸信息失败：{error}"))?
         .error_for_status()
         .map_err(|error| format!("壁纸数据服务异常：{error}"))?;
-    response
-        .json::<HashMap<String, RemoteWallpaper>>()
+    let bytes = response
+        .bytes()
         .await
-        .map_err(|error| format!("壁纸数据解析失败：{error}"))
+        .map_err(|error| format!("读取壁纸数据失败：{error}"))?;
+    let records = serde_json::from_slice::<HashMap<String, RemoteWallpaper>>(&bytes)
+        .map_err(|error| format!("壁纸数据解析失败：{error}"))?;
+    Ok((records, bytes.to_vec()))
 }
 
 fn wallpaper_from_live_bing(
@@ -398,11 +500,16 @@ async fn fetch_live_today_wallpaper(client: &Client, date: &str) -> Result<Wallp
     Ok(wallpaper)
 }
 
-async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
+async fn fetch_wallpaper(
+    client: &Client,
+    archive_cache: &MonthArchiveCache,
+    date: &str,
+    force_refresh: bool,
+) -> Result<Wallpaper, String> {
     let date = validate_date(date)?;
     let key = date.replace('-', "");
     let is_today = date == Local::now().format("%Y-%m-%d").to_string();
-    let records = match fetch_month_archive(client, &key[..6]).await {
+    let records = match archive_cache.get(client, &key[..6], force_refresh).await {
         Ok(records) => records,
         Err(error) if is_today => {
             return fetch_live_today_wallpaper(client, &date)
@@ -426,9 +533,14 @@ async fn fetch_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, Strin
     Err("没有找到这一天的壁纸".to_string())
 }
 
-async fn fetch_month_wallpapers(client: &Client, month: &str) -> Result<Vec<Wallpaper>, String> {
+async fn fetch_month_wallpapers(
+    client: &Client,
+    archive_cache: &MonthArchiveCache,
+    month: &str,
+    force_refresh: bool,
+) -> Result<Vec<Wallpaper>, String> {
     let month = validate_month(month)?;
-    let records = fetch_month_archive(client, &month).await?;
+    let records = archive_cache.get(client, &month, force_refresh).await?;
     let mut wallpapers = Vec::with_capacity(records.len());
     for (key, record) in records {
         if !key.starts_with(&month) || key.len() != 8 || image_url(&record.imgurl).is_err() {
@@ -511,8 +623,46 @@ fn dialog_directory(preferred: &Path) -> Result<PathBuf, String> {
     dirs::home_dir().ok_or_else(|| "无法定位可选的文件夹".to_string())
 }
 
-fn should_skip_auto_update(last_auto_update: Option<&str>, today: &str) -> bool {
-    last_auto_update == Some(today)
+fn should_skip_auto_update(last_handled_date: Option<&str>, today: &str) -> bool {
+    last_handled_date == Some(today)
+}
+
+#[derive(Serialize, Deserialize)]
+struct DailyWallpaperState {
+    date: String,
+    image_url: String,
+}
+
+fn read_daily_wallpaper_state(path: &Path) -> Option<String> {
+    let saved: DailyWallpaperState = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
+    validate_date(&saved.date).ok()
+}
+
+fn write_daily_wallpaper_state(path: &Path, date: &str, image_url: &str) -> Result<(), String> {
+    let contents = serde_json::to_vec_pretty(&DailyWallpaperState {
+        date: date.to_string(),
+        image_url: image_url.to_string(),
+    })
+    .map_err(|error| format!("无法序列化每日壁纸状态：{error}"))?;
+    fs::write(path, contents).map_err(|error| format!("无法保存每日壁纸状态：{error}"))
+}
+
+fn remember_daily_wallpaper(state: &AppState, date: &str, image_url: &str) -> Result<(), String> {
+    *state
+        .last_handled_wallpaper_date
+        .lock()
+        .map_err(|_| "自动更新状态不可用".to_string())? = Some(date.to_string());
+    if let Err(error) =
+        write_daily_wallpaper_state(&state.daily_wallpaper_state_path, date, image_url)
+    {
+        // The wallpaper is already applied; do not report the whole operation as failed.
+        eprintln!("无法保存每日壁纸状态，下次启动可能重复应用：{error}");
+    }
+    Ok(())
+}
+
+fn cached_wallpaper_image_is_usable(path: &Path) -> bool {
+    fs::metadata(path).is_ok_and(|metadata| metadata.is_file() && metadata.len() >= 1024)
 }
 
 fn wallpaper_cache_path(cache: &Path, date: &str, image_url: &str) -> PathBuf {
@@ -599,16 +749,33 @@ fn watch_display_reconnections<R: Runtime>(app: tauri::AppHandle<R>) {
 }
 
 #[tauri::command]
-async fn get_wallpaper(date: String, state: State<'_, AppState>) -> Result<Wallpaper, String> {
-    fetch_wallpaper(&state.client, &date).await
+async fn get_wallpaper(
+    date: String,
+    force_refresh: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<Wallpaper, String> {
+    fetch_wallpaper(
+        &state.client,
+        &state.archive_cache,
+        &date,
+        force_refresh.unwrap_or(false),
+    )
+    .await
 }
 
 #[tauri::command]
 async fn get_month_wallpapers(
     month: String,
+    force_refresh: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<Vec<Wallpaper>, String> {
-    fetch_month_wallpapers(&state.client, &month).await
+    fetch_month_wallpapers(
+        &state.client,
+        &state.archive_cache,
+        &month,
+        force_refresh.unwrap_or(false),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -621,14 +788,16 @@ async fn apply_wallpaper(
     let _update_guard = state.auto_update_lock.lock().await;
     let date = validate_date(&date)?;
     let path = wallpaper_cache_path(&state.wallpaper_cache, &date, &image_url);
-    download_image(&state.client, &image_url, &path).await?;
+    if !cached_wallpaper_image_is_usable(&path) {
+        download_image(&state.client, &image_url, &path).await?;
+    }
     platform::set_desktop_wallpaper(&path)?;
     remember_active_wallpaper(&state, &path)?;
-    *state
-        .last_auto_update
-        .lock()
-        .map_err(|_| "自动更新状态不可用".to_string())? =
-        Some(Local::now().format("%Y-%m-%d").to_string());
+    remember_daily_wallpaper(
+        &state,
+        &Local::now().format("%Y-%m-%d").to_string(),
+        &image_url,
+    )?;
     if set_lock_screen {
         platform::set_lock_screen_wallpaper(&path)?;
     }
@@ -965,13 +1134,14 @@ fn set_window_appearance<R: Runtime>(app: tauri::AppHandle<R>, mode: String) -> 
 }
 
 async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    let (client, cache, config, guard, update_lock) = {
+    let (client, cache, archive_cache, config, guard, update_lock) = {
         let state = app.state::<AppState>();
         (
             state.client.clone(),
             state.wallpaper_cache.clone(),
+            state.archive_cache.clone(),
             state.config_path.clone(),
-            state.last_auto_update.clone(),
+            state.last_handled_wallpaper_date.clone(),
             state.auto_update_lock.clone(),
         )
     };
@@ -981,16 +1151,18 @@ async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()
         return Ok(());
     }
     let today = Local::now().format("%Y-%m-%d").to_string();
-    let last_auto_update = guard
+    let last_handled_date = guard
         .lock()
         .map_err(|_| "更新状态不可用".to_string())?
         .clone();
-    if should_skip_auto_update(last_auto_update.as_deref(), &today) {
+    if should_skip_auto_update(last_handled_date.as_deref(), &today) {
         return Ok(());
     }
-    let wallpaper = fetch_wallpaper(&client, &today).await?;
+    let wallpaper = fetch_wallpaper(&client, &archive_cache, &today, false).await?;
     let path = wallpaper_cache_path(&cache, &today, &wallpaper.image_url);
-    download_image(&client, &wallpaper.image_url, &path).await?;
+    if !cached_wallpaper_image_is_usable(&path) {
+        download_image(&client, &wallpaper.image_url, &path).await?;
+    }
     platform::set_desktop_wallpaper(&path)?;
     let lock_screen_warning = if cfg!(target_os = "windows") && settings.lock_screen {
         platform::set_lock_screen_wallpaper(&path).err()
@@ -1001,7 +1173,10 @@ async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()
         let state = app.state::<AppState>();
         remember_active_wallpaper(&state, &path)?;
     }
-    *guard.lock().map_err(|_| "更新状态不可用".to_string())? = Some(today.clone());
+    {
+        let state = app.state::<AppState>();
+        remember_daily_wallpaper(&state, &today, &wallpaper.image_url)?;
+    }
     let _ = app.emit("auto-update-complete", &today);
     if let Some(warning) = lock_screen_warning {
         let _ = app.emit("auto-update-warning", warning);
@@ -1082,8 +1257,11 @@ pub fn run() {
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let cache_dir = app.path().app_cache_dir()?.join("wallpapers");
+            let archive_cache_dir = app.path().app_cache_dir()?.join("archive-json");
+            let daily_wallpaper_state_path = config_dir.join("daily-wallpaper.json");
             fs::create_dir_all(&config_dir)?;
             fs::create_dir_all(&cache_dir)?;
+            fs::create_dir_all(&archive_cache_dir)?;
             let client = Client::builder()
                 .timeout(Duration::from_secs(15))
                 .user_agent("MyBingWallpaper/0.3")
@@ -1092,9 +1270,13 @@ pub fn run() {
             app.manage(AppState {
                 client,
                 config_path: config_dir.join("settings.json"),
+                daily_wallpaper_state_path: daily_wallpaper_state_path.clone(),
                 active_wallpaper: Arc::new(Mutex::new(latest_cached_wallpaper(&cache_dir))),
                 wallpaper_cache: cache_dir,
-                last_auto_update: Arc::new(Mutex::new(None)),
+                archive_cache: Arc::new(MonthArchiveCache::new(archive_cache_dir)),
+                last_handled_wallpaper_date: Arc::new(Mutex::new(read_daily_wallpaper_state(
+                    &daily_wallpaper_state_path,
+                ))),
                 auto_update_lock: Arc::new(tokio::sync::Mutex::new(())),
                 software_update_lock: Arc::new(tokio::sync::Mutex::new(())),
                 pending_software_update: Arc::new(tokio::sync::Mutex::new(None)),
@@ -1188,11 +1370,19 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        bing_image_id, effective_save_directory, parse_version, should_skip_auto_update,
-        trusted_external_url, validate_month, wallpaper_cache_path, wallpaper_from_live_bing,
-        BingArchive, BingModel, Settings,
+        bing_image_id, cached_wallpaper_image_is_usable, current_month_cache_is_fresh,
+        effective_save_directory, parse_version, read_daily_wallpaper_state,
+        should_skip_auto_update, trusted_external_url, validate_month, wallpaper_cache_path,
+        wallpaper_from_live_bing, write_daily_wallpaper_state, BingArchive, BingModel,
+        MonthArchiveCache, RemoteWallpaper, Settings,
     };
-    use std::path::Path;
+    use chrono::NaiveDate;
+    use std::{
+        collections::HashMap,
+        fs,
+        path::Path,
+        time::{Duration, SystemTime},
+    };
 
     #[test]
     fn accepts_only_real_archive_months() {
@@ -1211,6 +1401,146 @@ mod tests {
     fn auto_updates_again_on_the_next_day() {
         assert!(!should_skip_auto_update(Some("2026-09-21"), "2026-09-22"));
         assert!(!should_skip_auto_update(None, "2026-09-22"));
+    }
+
+    #[test]
+    fn historical_archive_remains_fresh_and_future_archive_does_not() {
+        let today = NaiveDate::from_ymd_opt(2026, 9, 29).unwrap();
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100_000);
+        let records = HashMap::new();
+        assert!(current_month_cache_is_fresh(
+            "202608",
+            &records,
+            SystemTime::UNIX_EPOCH,
+            now,
+            today
+        ));
+        assert!(!current_month_cache_is_fresh(
+            "202610", &records, now, now, today
+        ));
+    }
+
+    #[test]
+    fn current_archive_without_complete_today_expires_after_five_minutes() {
+        let today = NaiveDate::from_ymd_opt(2026, 9, 29).unwrap();
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100_000);
+        let mut records = HashMap::new();
+        assert!(current_month_cache_is_fresh(
+            "202609",
+            &records,
+            now - Duration::from_secs(299),
+            now,
+            today
+        ));
+        assert!(!current_month_cache_is_fresh(
+            "202609",
+            &records,
+            now - Duration::from_secs(300),
+            now,
+            today
+        ));
+
+        records.insert(
+            "20260929".to_string(),
+            RemoteWallpaper {
+                date: None,
+                imgtitle: "今日壁纸".to_string(),
+                imgdesc: String::new(),
+                imgurl: "https://cn.bing.com/th?id=OHR.Today_UHD.jpg".to_string(),
+            },
+        );
+        assert!(!current_month_cache_is_fresh(
+            "202609",
+            &records,
+            SystemTime::UNIX_EPOCH,
+            now,
+            today
+        ));
+        records.get_mut("20260929").unwrap().imgdesc = "完整说明".to_string();
+        assert!(current_month_cache_is_fresh(
+            "202609",
+            &records,
+            SystemTime::UNIX_EPOCH,
+            now,
+            today
+        ));
+
+        let tomorrow = NaiveDate::from_ymd_opt(2026, 9, 30).unwrap();
+        assert!(!current_month_cache_is_fresh(
+            "202609",
+            &records,
+            SystemTime::UNIX_EPOCH,
+            now,
+            tomorrow
+        ));
+    }
+
+    #[test]
+    fn daily_wallpaper_marker_survives_restart_and_ignores_bad_data() {
+        let path = std::env::temp_dir().join(format!(
+            "mybingwallpaper-daily-state-{}-{}.json",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        ));
+        write_daily_wallpaper_state(
+            &path,
+            "2026-09-29",
+            "https://cn.bing.com/th?id=OHR.Today_UHD.jpg",
+        )
+        .unwrap();
+        assert_eq!(
+            read_daily_wallpaper_state(&path).as_deref(),
+            Some("2026-09-29")
+        );
+        fs::write(&path, b"invalid").unwrap();
+        assert_eq!(read_daily_wallpaper_state(&path), None);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn monthly_json_has_its_own_persistent_cache_directory() {
+        let directory = std::env::temp_dir().join(format!(
+            "mybingwallpaper-archive-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let cache = MonthArchiveCache::new(directory.clone());
+        let path = cache.path("202608");
+        assert_eq!(path, directory.join("202608.json"));
+        fs::write(
+            &path,
+            r#"{"20260831":{"imgtitle":"历史壁纸","imgdesc":"说明","imgurl":"https://cn.bing.com/th?id=OHR.Old_UHD.jpg"}}"#,
+        )
+        .unwrap();
+        let reopened = MonthArchiveCache::new(directory.clone());
+        assert_eq!(reopened.read("202608").unwrap().0.len(), 1);
+        fs::remove_file(path).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn only_reuses_nonempty_cached_wallpaper_images() {
+        let path = std::env::temp_dir().join(format!(
+            "mybingwallpaper-image-test-{}-{}.jpg",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        ));
+        assert!(!cached_wallpaper_image_is_usable(&path));
+        fs::write(&path, [0_u8; 1023]).unwrap();
+        assert!(!cached_wallpaper_image_is_usable(&path));
+        fs::write(&path, [0_u8; 1024]).unwrap();
+        assert!(cached_wallpaper_image_is_usable(&path));
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

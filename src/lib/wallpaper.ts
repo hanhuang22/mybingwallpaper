@@ -109,18 +109,19 @@ export function randomDate(minimum = "2010-01-01", maximum = formatDateKey(new D
   return formatDateKey(new Date(start + Math.floor(Math.random() * (days + 1)) * day));
 }
 
-export async function fetchWallpaperInBrowser(date: string): Promise<Wallpaper> {
-  const record = (await fetchMonthWallpapersInBrowser(date.slice(0, 7)))
+export async function fetchWallpaperInBrowser(date: string, forceRefresh = false): Promise<Wallpaper> {
+  const record = (await fetchMonthWallpapersInBrowser(date.slice(0, 7), forceRefresh))
     .find((wallpaper) => wallpaper.date === date);
   if (!record) throw new Error("没有找到这一天的壁纸");
   return record;
 }
 
-export async function fetchMonthWallpapersInBrowser(month: string): Promise<Wallpaper[]> {
+export async function fetchMonthWallpapersInBrowser(month: string, forceRefresh = false): Promise<Wallpaper[]> {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("月份格式无效");
   const key = month.replace("-", "");
   const response = await fetch(
     `/archive/month/${key}.json`,
+    { cache: forceRefresh ? "reload" : "default" },
   );
   if (!response.ok) {
     throw new Error(`壁纸数据请求失败（${response.status}）`);
