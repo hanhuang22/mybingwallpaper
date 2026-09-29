@@ -1198,15 +1198,30 @@ fn show_main_window<R: Runtime>(app: &tauri::AppHandle<R>) {
     }
 }
 
+fn opens_main_window_on_tray_click(button: MouseButton, state: MouseButtonState) -> bool {
+    let opening_state = if cfg!(target_os = "macos") {
+        MouseButtonState::Down
+    } else {
+        MouseButtonState::Up
+    };
+    button == MouseButton::Left && state == opening_state
+}
+
 fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
     let today = MenuItem::with_id(app, "today", "应用今日壁纸", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &today, &separator, &quit])?;
-    let mut builder = TrayIconBuilder::with_id("main")
-        .menu(&menu)
-        .show_menu_on_left_click(false);
+    let mut builder = TrayIconBuilder::with_id("main").show_menu_on_left_click(false);
+    // An attached NSStatusItem menu can consume left clicks before Tauri sees them.
+    // On macOS, keep it detached and present it only for an explicit right click.
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.menu(&menu);
+    }
+    #[cfg(target_os = "macos")]
+    let context_menu = menu.clone();
 
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
@@ -1216,14 +1231,22 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
         builder = builder.icon_as_template(true);
     }
     builder
-        .on_tray_icon_event(|tray, event| {
+        .on_tray_icon_event(move |tray, event| {
             if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
+                button,
+                button_state,
                 ..
             } = event
             {
-                show_main_window(tray.app_handle());
+                if opens_main_window_on_tray_click(button, button_state) {
+                    show_main_window(tray.app_handle());
+                }
+                #[cfg(target_os = "macos")]
+                if button == MouseButton::Right && button_state == MouseButtonState::Down {
+                    if let Some(window) = tray.app_handle().get_webview_window("main") {
+                        let _ = window.popup_menu(&context_menu);
+                    }
+                }
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -1363,18 +1386,30 @@ pub fn run() {
             open_save_directory,
             choose_save_directory
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running My Bing Wallpaper");
+        .build(tauri::generate_context!())
+        .expect("error while building My Bing Wallpaper")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } = event
+            {
+                show_main_window(app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         bing_image_id, cached_wallpaper_image_is_usable, current_month_cache_is_fresh,
-        effective_save_directory, parse_version, read_daily_wallpaper_state,
-        should_skip_auto_update, trusted_external_url, validate_month, wallpaper_cache_path,
-        wallpaper_from_live_bing, write_daily_wallpaper_state, BingArchive, BingModel,
-        MonthArchiveCache, RemoteWallpaper, Settings,
+        effective_save_directory, opens_main_window_on_tray_click, parse_version,
+        read_daily_wallpaper_state, should_skip_auto_update, trusted_external_url, validate_month,
+        wallpaper_cache_path, wallpaper_from_live_bing, write_daily_wallpaper_state, BingArchive,
+        BingModel, MonthArchiveCache, RemoteWallpaper, Settings,
     };
     use chrono::NaiveDate;
     use std::{
@@ -1383,6 +1418,7 @@ mod tests {
         path::Path,
         time::{Duration, SystemTime},
     };
+    use tauri::tray::{MouseButton, MouseButtonState};
 
     #[test]
     fn accepts_only_real_archive_months() {
@@ -1390,6 +1426,32 @@ mod tests {
         assert!(validate_month("202613").is_err());
         assert!(validate_month("2026-09").is_err());
         assert!(validate_month("202609/extra").is_err());
+    }
+
+    #[test]
+    fn tray_opens_on_the_platforms_reliable_left_click_event() {
+        let opening_state = if cfg!(target_os = "macos") {
+            MouseButtonState::Down
+        } else {
+            MouseButtonState::Up
+        };
+        let other_state = if opening_state == MouseButtonState::Down {
+            MouseButtonState::Up
+        } else {
+            MouseButtonState::Down
+        };
+        assert!(opens_main_window_on_tray_click(
+            MouseButton::Left,
+            opening_state
+        ));
+        assert!(!opens_main_window_on_tray_click(
+            MouseButton::Left,
+            other_state
+        ));
+        assert!(!opens_main_window_on_tray_click(
+            MouseButton::Right,
+            opening_state
+        ));
     }
 
     #[test]
