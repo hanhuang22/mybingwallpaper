@@ -141,15 +141,6 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.GITEE_RSA_PRIVATE_KEY }}
-      - name: Sync release tag to Gitee
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan gitee.com >> ~/.ssh/known_hosts
-          git remote add gitee git@gitee.com:Hyman25/mybingwallpaper.git
-          git push gitee "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
       - uses: actions/download-artifact@v5
         with:
           path: release-assets
@@ -164,7 +155,3 @@ jobs:
           RELEASE_COMMIT: ${{ github.sha }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: node .github/scripts/publish-gitee-release.mjs
-      - name: Push updater manifest branch to Gitee
-        run: |
-          git fetch origin updater:refs/remotes/origin/updater
-          git push --force gitee refs/remotes/origin/updater:refs/heads/updater
