@@ -474,27 +474,57 @@ async fn fetch_bing_model(client: &Client, endpoint: &str) -> Result<BingModel, 
         .await
 }
 
-async fn fetch_live_today_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
-    let archive = client
-        .get("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN")
+async fn fetch_bing_archive(client: &Client, endpoint: &str) -> Result<BingArchive, String> {
+    client
+        .get(endpoint)
+        .timeout(Duration::from_secs(8))
         .send()
         .await
-        .map_err(|error| format!("获取 Bing 日期信息失败：{error}"))?
+        .map_err(|error| format!("日期接口请求失败：{error}"))?
         .error_for_status()
-        .map_err(|error| format!("Bing 日期服务异常：{error}"))?
+        .map_err(|error| format!("日期接口服务异常：{error}"))?
         .json::<BingArchive>()
         .await
-        .map_err(|error| format!("Bing 日期信息解析失败：{error}"))?;
-    let mut wallpaper = wallpaper_from_live_bing(date, None, &archive)?;
-    let (cn_model, www_model) = tokio::join!(
-        fetch_bing_model(client, "https://cn.bing.com/hp/api/model?mkt=zh-CN"),
-        fetch_bing_model(client, "https://www.bing.com/hp/api/model?mkt=zh-CN"),
-    );
-    for model in [cn_model.ok(), www_model.ok()].into_iter().flatten() {
-        let candidate = wallpaper_from_live_bing(date, Some(&model), &archive)?;
-        if !candidate.description.trim().is_empty() {
-            wallpaper.description = candidate.description;
-            break;
+        .map_err(|error| format!("日期接口数据解析失败：{error}"))
+}
+
+async fn fetch_live_today_wallpaper(client: &Client, date: &str) -> Result<Wallpaper, String> {
+    let endpoints = [
+        (
+            "cn.bing.com",
+            "https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN",
+        ),
+        (
+            "www.bing.com",
+            "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN",
+        ),
+    ];
+    let mut failures = Vec::new();
+    let mut selected = None;
+    for (host, endpoint) in endpoints {
+        match fetch_bing_archive(client, endpoint).await {
+            Ok(archive) => match wallpaper_from_live_bing(date, None, &archive) {
+                Ok(wallpaper) => {
+                    selected = Some((wallpaper, archive));
+                    break;
+                }
+                Err(error) => failures.push(format!("{host}：{error}")),
+            },
+            Err(error) => failures.push(format!("{host}：{error}")),
+        }
+    }
+    let (mut wallpaper, archive) =
+        selected.ok_or_else(|| format!("获取 Bing 今日壁纸失败：{}", failures.join("；")))?;
+    for endpoint in [
+        "https://cn.bing.com/hp/api/model?mkt=zh-CN",
+        "https://www.bing.com/hp/api/model?mkt=zh-CN",
+    ] {
+        if let Ok(model) = fetch_bing_model(client, endpoint).await {
+            let candidate = wallpaper_from_live_bing(date, Some(&model), &archive)?;
+            if !candidate.description.trim().is_empty() {
+                wallpaper.description = candidate.description;
+                break;
+            }
         }
     }
     Ok(wallpaper)
