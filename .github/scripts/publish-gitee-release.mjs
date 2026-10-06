@@ -255,4 +255,18 @@ async function publishUpdaterBranch() {
 }
 
 await publishUpdaterBranch();
+const currentGiteeManifest = await giteeRequest("/contents/latest.json?ref=updater");
+if (!currentGiteeManifest?.sha) {
+  throw new Error("Gitee updater branch is missing latest.json or its blob SHA");
+}
+await giteeRequest("/contents/latest.json", {
+  method: "PUT",
+  body: new URLSearchParams({
+    branch: "updater",
+    message: `chore: update signed manifest for ${tag}`,
+    content: Buffer.from(updaterManifestContents).toString("base64"),
+    sha: currentGiteeManifest.sha,
+  }),
+});
+console.log("Published signed manifest to Gitee updater branch");
 console.log(`Published ${assets.length} signed assets to Gitee release ${tag}`);
