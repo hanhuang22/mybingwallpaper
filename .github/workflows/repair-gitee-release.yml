@@ -1,6 +1,9 @@
 name: Retry Gitee Release
 
 on:
+  push:
+    branches:
+      - repair-gitee-v1.1.2
   workflow_dispatch:
     inputs:
       tag:
@@ -26,7 +29,7 @@ jobs:
           ssh-private-key: ${{ secrets.GITEE_RSA_PRIVATE_KEY }}
       - name: Prepare release tag and Gitee remote
         env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ inputs.tag || 'v1.1.2' }}
         run: |
           git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}"
           echo "RELEASE_COMMIT=$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")" >> "$GITHUB_ENV"
@@ -37,7 +40,7 @@ jobs:
       - name: Download existing GitHub release assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ inputs.tag || 'v1.1.2' }}
         run: |
           mkdir -p release-assets
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'mybingwallpaper-*' --dir release-assets
@@ -49,7 +52,7 @@ jobs:
           GITEE_OWNER: Hyman25
           GITEE_REPO: mybingwallpaper
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ inputs.tag || 'v1.1.2' }}
         run: node .github/scripts/publish-gitee-release.mjs
       - name: Push updater manifest branch to Gitee
         run: |
