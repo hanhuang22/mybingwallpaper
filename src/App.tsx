@@ -13,6 +13,7 @@ import {
   Folder,
   FolderOpen,
   Globe2,
+  Heart,
   ImageIcon,
   Info,
   LayoutGrid,
@@ -29,6 +30,9 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DatePicker } from "./components/DatePicker";
 import { MonthGallery } from "./components/MonthGallery";
+import { FavoritesGallery } from "./components/FavoritesGallery";
+import { WallpaperAutomation } from "./components/WallpaperAutomation";
+import { favoriteWallpaper, matchingFavorite, type Favorite, type FavoriteImportResult } from "./lib/favorites";
 import { WindowsTitleBar } from "./components/WindowsTitleBar";
 import { preloadWallpaperImage } from "./lib/image";
 import {
@@ -112,6 +116,15 @@ function App() {
   const [outgoingWallpaper, setOutgoingWallpaper] = useState<Wallpaper | null>(null);
   const [retryTodayWallpaper, setRetryTodayWallpaper] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(true);
+  const [favoritesBusy, setFavoritesBusy] = useState(false);
+  const [favoritesError, setFavoritesError] = useState("");
+  const [favoritesFeedback, setFavoritesFeedback] = useState("");
+  const [favoritesPendingId, setFavoritesPendingId] = useState<string | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const favoritePreviewRef = useRef(false);
   const [galleryMonth, setGalleryMonth] = useState(() => formatDateKey(new Date()).slice(0, 7));
   const [galleryRecords, setGalleryRecords] = useState<Wallpaper[]>([]);
   const galleryDisplayRecords = useMemo(
@@ -146,7 +159,7 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.1.2");
+  const [appVersion, setAppVersion] = useState("1.2.0");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
@@ -223,6 +236,8 @@ function App() {
     setGalleryPendingDate(null);
     setGallerySelectionError("");
     setGalleryOpen(false);
+    setFavoritesOpen(false);
+    setFavoritesPendingId(null);
   }, []);
 
   useEffect(() => {
@@ -261,6 +276,7 @@ function App() {
     const previous = wallpaperRef.current;
     setOutgoingWallpaper(previous?.imageUrl !== next.imageUrl ? previous : null);
     wallpaperRef.current = next;
+    favoritePreviewRef.current = Boolean(next.favoriteId);
     setWallpaper(next);
   }, []);
 
@@ -342,6 +358,7 @@ function App() {
   useEffect(() => {
     setDetailsExpanded(false);
     setDetailsHovered(false);
+    if (favoritePreviewRef.current) return;
     if (gallerySkipDate.current === selectedDate) {
       gallerySkipDate.current = null;
       return;
@@ -357,7 +374,7 @@ function App() {
   }, [loadWallpaper, retryTodayWallpaper, selectedDate, today]);
 
   useEffect(() => {
-    if (selectedDate !== today || wallpaper?.date !== today || wallpaper.description.trim()) return;
+    if (wallpaper?.favoriteId || selectedDate !== today || wallpaper?.date !== today || wallpaper.description.trim()) return;
     let active = true;
     const retryTimer = window.setInterval(() => {
       void getWallpaper(today).then((next) => {
@@ -372,7 +389,7 @@ function App() {
       active = false;
       window.clearInterval(retryTimer);
     };
-  }, [loadWallpaper, selectedDate, showWallpaper, today, wallpaper?.date, wallpaper?.description]);
+  }, [loadWallpaper, selectedDate, showWallpaper, today, wallpaper?.date, wallpaper?.description, wallpaper?.favoriteId]);
 
   useEffect(() => {
     let midnightTimer = 0;
@@ -426,7 +443,16 @@ function App() {
   }, [syncToday]);
 
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      try { setFavorites(JSON.parse(localStorage.getItem("mybingwallpaper-favorites") ?? "[]")); } catch { /* Empty browser preview collection. */ }
+      setFavoritesLoading(false);
+      return;
+    }
+
+    void invoke<Favorite[]>("get_favorites")
+      .then(setFavorites)
+      .catch((reason) => setFavoritesError(`读取收藏失败：${String(reason)}`))
+      .finally(() => setFavoritesLoading(false));
 
     void Promise.all([
       invoke<Settings>("load_settings"),
@@ -445,6 +471,7 @@ function App() {
     void Promise.all([
       listen("tray-apply-today", () => {
         const currentDate = formatDateKey(new Date());
+        favoritePreviewRef.current = false;
         syncToday(currentDate);
         setSelectedDate(currentDate);
         void getWallpaper(currentDate).then((record) => {
@@ -459,7 +486,11 @@ function App() {
         syncToday(event.payload);
         setError((current) => current.startsWith("自动更新失败：") ? "" : current);
         setDismissedToast((current) => current?.startsWith("自动更新失败：") ? null : current);
-        if (selectedDateRef.current === event.payload) void loadWallpaper(event.payload);
+        if (!favoritePreviewRef.current && selectedDateRef.current === event.payload) void loadWallpaper(event.payload);
+      }),
+      listen<Settings>("wallpaper-settings-changed", (event) => {
+        setSettings(event.payload);
+        setFavoritesFeedback("收藏已清空，自动播放已关闭；桌面保留当前壁纸。");
       }),
       listen<string>("auto-update-error", (event) => {
         if (isUnpublishedToday(event.payload)) return;
@@ -512,7 +543,10 @@ function App() {
   }, [appVersion, cancelUpdateStatusReset, loadWallpaper, setSelectedDate, syncToday]);
 
   const updateSettings = async (patch: Partial<Settings>) => {
+    if (settingsBusy) return;
     const next = { ...settings, ...patch };
+    next.autoUpdate = next.wallpaperMode === "daily";
+    setSettingsBusy(true);
     setSettings(next);
     setError("");
     try {
@@ -520,6 +554,9 @@ function App() {
     } catch (reason) {
       setSettings(settings);
       setError(`设置保存失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      setFavoritesError(`设置保存失败：${String(reason)}`);
+    } finally {
+      setSettingsBusy(false);
     }
   };
 
@@ -532,11 +569,13 @@ function App() {
     setError("");
     setMessage("正在下载并设置壁纸…");
     try {
-      await invoke("apply_wallpaper", {
-        imageUrl: wallpaper.imageUrl,
-        date: wallpaper.date,
-        setLockScreen: platform === "windows" && settings.lockScreen,
-      });
+      const favorite = matchingFavorite(favorites, wallpaper);
+      if (favorite) await invoke("apply_favorite", { id: favorite.id });
+      else await invoke("apply_wallpaper", {
+          imageUrl: wallpaper.imageUrl,
+          date: wallpaper.date,
+          setLockScreen: platform === "windows" && settings.lockScreen,
+        });
       setMessage("壁纸已更新");
       window.setTimeout(() => setMessage(""), 2400);
     } catch (reason) {
@@ -556,10 +595,9 @@ function App() {
     setError("");
     setMessage(settings.saveWithoutPrompt ? "正在保存原图…" : "请选择保存位置…");
     try {
-      const path = await invoke<string | null>("save_wallpaper", {
-        imageUrl: wallpaper.imageUrl,
-        date: wallpaper.date,
-      });
+      const path = wallpaper.favoriteId
+        ? await invoke<string | null>("save_favorite", { id: wallpaper.favoriteId })
+        : await invoke<string | null>("save_wallpaper", { imageUrl: wallpaper.imageUrl, date: wallpaper.date });
       if (path) {
         setMessage(`已保存到 ${path}`);
         window.setTimeout(() => setMessage(""), 4500);
@@ -705,6 +743,7 @@ function App() {
       closeGallery();
       return;
     }
+    closeGallery();
     const month = selectedDate.slice(0, 7);
     const cached = galleryCache.current.get(month);
     const fresh = cached && (month < today.slice(0, 7) || Date.now() - cached.loadedAt < 5 * 60_000);
@@ -726,8 +765,89 @@ function App() {
   };
 
   const selectDockDate = (date: string) => {
-    if (galleryOpen) closeGallery();
+    const pendingFavorite = favoritesPendingId !== null;
+    if (galleryOpen || favoritesOpen) closeGallery();
+    const wasFavorite = favoritePreviewRef.current;
+    favoritePreviewRef.current = false;
+    if (date === selectedDate && (wasFavorite || pendingFavorite)) void loadWallpaper(date);
     setSelectedDate(date);
+  };
+
+  const toggleFavorites = () => {
+    if (favoritesOpen) { closeGallery(); return; }
+    closeGallery();
+    setFavoritesOpen(true);
+    setFavoritesFeedback("");
+  };
+
+  const persistBrowserFavorites = (next: Favorite[]) => {
+    localStorage.setItem("mybingwallpaper-favorites", JSON.stringify(next));
+    setFavorites(next);
+  };
+
+  const removeFavorite = async (favorite: Favorite) => {
+    setFavoritesBusy(true);
+    setFavoritesError("");
+    try {
+      const next = isTauri()
+        ? await invoke<Favorite[]>("remove_favorite", { id: favorite.id })
+        : favorites.filter((item) => item.id !== favorite.id);
+      if (isTauri()) setFavorites(next); else persistBrowserFavorites(next);
+      if (wallpaperRef.current?.favoriteId === favorite.id) {
+        favoritePreviewRef.current = false;
+        void loadWallpaper(selectedDateRef.current);
+      }
+      setFavoritesFeedback("已移除收藏，原文件不受影响");
+      setMessage("已移除收藏");
+      window.setTimeout(() => setMessage(""), 2500);
+    } catch (reason) {
+      setFavoritesError(`移除失败：${String(reason)}`);
+      setError(`移除收藏失败：${String(reason)}`);
+    } finally { setFavoritesBusy(false); }
+  };
+
+  const toggleCurrentFavorite = async () => {
+    if (!wallpaper || favoritesBusy) return;
+    const current = matchingFavorite(favorites, wallpaper);
+    if (current) { await removeFavorite(current); return; }
+    setFavoritesBusy(true);
+    setError("");
+    try {
+      if (isTauri()) setFavorites(await invoke<Favorite[]>("add_favorite", { record: wallpaper }));
+      else persistBrowserFavorites([...favorites, {
+        id: crypto.randomUUID(), source: "bing", date: wallpaper.date, title: wallpaper.title,
+        description: wallpaper.description, sourceUrl: wallpaper.imageUrl,
+        imagePath: wallpaper.imageUrl, thumbnailPath: wallpaper.imageUrl, addedAt: Date.now(),
+      }]);
+      setMessage(isTauri() ? "已加入收藏，图片已保存在本地" : "已加入浏览器预览收藏");
+      window.setTimeout(() => setMessage(""), 2500);
+    } catch (reason) { setError(`收藏失败：${String(reason)}`); }
+    finally { setFavoritesBusy(false); }
+  };
+
+  const importFavorites = async (folder: boolean) => {
+    if (!isTauri()) { setFavoritesError("请在桌面测试版中导入本地图片"); return; }
+    setFavoritesBusy(true);
+    setFavoritesError("");
+    setFavoritesFeedback("");
+    try {
+      const result = await invoke<FavoriteImportResult | null>("import_favorites", { folder });
+      if (!result) return;
+      setFavorites(result.favorites);
+      setFavoritesFeedback(`已导入 ${result.addedCount} 张${result.duplicateCount ? `，跳过 ${result.duplicateCount} 张重复图片` : ""}；已保存本地副本。`);
+      if (result.errors.length) setFavoritesError(`${result.errors.length} 张导入失败：${result.errors.slice(0, 3).join("；")}`);
+    } catch (reason) { setFavoritesError(`导入失败：${String(reason)}`); }
+    finally { setFavoritesBusy(false); }
+  };
+
+  const advanceFavorite = async () => {
+    setFavoritesBusy(true);
+    setFavoritesError("");
+    try {
+      await invoke("advance_favorite");
+      setFavoritesFeedback("桌面壁纸已更换，下次更换从现在开始计时。");
+    } catch (reason) { setFavoritesError(`更换失败：${String(reason)}`); }
+    finally { setFavoritesBusy(false); }
   };
 
   const selectGalleryWallpaper = async (record: Wallpaper, card: HTMLButtonElement) => {
@@ -735,18 +855,18 @@ function App() {
     gallerySelectionId.current = selectionId;
     setGalleryPendingDate(record.date);
     setGallerySelectionError("");
-    if (record.date !== selectedDate) {
+    if (!record.favoriteId && record.date !== selectedDate) {
       gallerySkipDate.current = record.date;
       setSelectedDate(record.date);
     }
 
-    const next = wallpaperRef.current?.date === record.date && wallpaperRef.current.imageUrl === record.imageUrl
+    const next = wallpaperRef.current?.date === record.date && wallpaperRef.current.imageUrl === record.imageUrl && wallpaperRef.current.favoriteId === record.favoriteId
       ? wallpaperRef.current
       : await loadWallpaper(record.date, record);
     if (selectionId !== gallerySelectionId.current) return;
     if (!next) {
       setGalleryPendingDate(null);
-      setGallerySelectionError("原图加载失败，请重试或选择其他日期");
+      setGallerySelectionError(record.favoriteId ? "收藏图片加载失败，请重新导入或选择其他图片" : "原图加载失败，请重试或选择其他日期");
       return;
     }
 
@@ -778,6 +898,9 @@ function App() {
   const title = parseTitle(wallpaper?.title ?? "必应每日壁纸");
   const showDetails = !titleCollapsed && (detailsExpanded || detailsHovered);
   const toastText = error || (!action ? message : "");
+  const currentFavorite = matchingFavorite(favorites, wallpaper);
+  const collectionOpen = galleryOpen || favoritesOpen;
+  const canUsePreview = !collectionOpen && Boolean(wallpaper) && (Boolean(wallpaper?.favoriteId) || wallpaper?.date === selectedDate) && !action;
 
   return (
     <main className={`app-shell${wallpaper ? " has-wallpaper" : ""}${platform === "macos" ? " mac-titlebar" : ""}${platform === "windows" ? " windows-titlebar" : ""}`}>
@@ -806,7 +929,7 @@ function App() {
           <div className="image-placeholder"><ImageIcon size={44} /></div>
         )}
         <div className="image-shade" aria-hidden="true" />
-        {wallpaper && (
+        {wallpaper && !collectionOpen && (
           <button
             className="title-collapse-toggle"
             type="button"
@@ -825,8 +948,8 @@ function App() {
         <div
           id="wallpaper-title"
           className={`image-copy${showDetails ? " expanded" : ""}${detailsExpanded ? " pinned" : ""}`}
-          aria-hidden={titleCollapsed}
-          inert={titleCollapsed}
+          aria-hidden={titleCollapsed || collectionOpen}
+          inert={titleCollapsed || collectionOpen}
           onMouseEnter={() => setDetailsHovered(true)}
           onMouseLeave={() => setDetailsHovered(false)}
         >
@@ -838,7 +961,7 @@ function App() {
           )}
           <div className="image-copy-heading">
             <div>
-              <p className="eyebrow"><CalendarDays size={14} /> {friendlyDate(wallpaper?.date ?? selectedDate)}</p>
+              <p className="eyebrow">{wallpaper?.localImage ? <ImageIcon size={14} /> : <CalendarDays size={14} />} {wallpaper?.localImage ? "本地收藏" : friendlyDate(wallpaper?.date ?? selectedDate)}</p>
               <h1 className={title.headline.length > 18 ? "long-title" : undefined}>
                 {title.headline}
               </h1>
@@ -860,6 +983,11 @@ function App() {
             )}
           </div>
         </div>
+        {wallpaper && !collectionOpen && (
+          <button type="button" className={`preview-favorite${currentFavorite ? " active" : ""}`} aria-label={currentFavorite ? "取消收藏当前壁纸" : "收藏当前壁纸"} title={currentFavorite ? "取消收藏" : "收藏壁纸并保存本地副本"} aria-pressed={Boolean(currentFavorite)} disabled={favoritesBusy || favoritesLoading || Boolean(action)} onClick={() => void toggleCurrentFavorite()}>
+            {favoritesBusy ? <LoaderCircle className="spin" size={19} /> : <Heart size={19} fill={currentFavorite ? "currentColor" : "none"} />}
+          </button>
+        )}
         {galleryOpen && (
           <MonthGallery
             month={galleryMonth}
@@ -879,6 +1007,27 @@ function App() {
               setGalleryReloadId((current) => current + 1);
             }}
             onSelect={(record, card) => void selectGalleryWallpaper(record, card)}
+          />
+        )}
+        {favoritesOpen && (
+          <FavoritesGallery
+            favorites={favorites}
+            settings={settings}
+            loading={favoritesLoading}
+            busy={favoritesBusy}
+            settingsBusy={settingsBusy}
+            feedback={favoritesFeedback}
+            error={favoritesError || gallerySelectionError}
+            selectedId={wallpaper?.favoriteId ?? currentFavorite?.id}
+            pendingId={favoritesPendingId}
+            onSelect={(favorite, card) => {
+              setFavoritesPendingId(favorite.id);
+              void selectGalleryWallpaper(favoriteWallpaper(favorite, today), card).then(() => setFavoritesPendingId(null));
+            }}
+            onRemove={(favorite) => void removeFavorite(favorite)}
+            onImport={(folder) => void importFavorites(folder)}
+            onSettings={(patch) => { setFavoritesError(""); void updateSettings(patch); }}
+            onAdvance={() => void advanceFavorite()}
           />
         )}
         {galleryZoom && (
@@ -919,18 +1068,21 @@ function App() {
           <button className="text-button today-button" type="button" aria-label="今天" title="跳转到今天" onClick={() => selectDockDate(today)}>
             <CalendarCheck2 className="today-icon" size={18} /><span className="dock-navigation-label">今天</span>
           </button>
-          <button className={`text-button gallery-toggle${galleryOpen ? " active" : ""}`} type="button" aria-label={galleryOpen ? "返回单图" : "查看当月缩略图"} aria-pressed={galleryOpen} title={galleryOpen ? "返回单图" : "查看当月缩略图"} onClick={toggleGallery}>
-            {galleryOpen ? <ImageIcon size={17} /> : <LayoutGrid size={17} />}<span className="dock-navigation-label">{galleryOpen ? "单图" : "月览"}</span>
+          <button className={`icon-button gallery-toggle${galleryOpen ? " active" : ""}`} type="button" aria-label={galleryOpen ? "返回单图" : "查看当月缩略图"} aria-pressed={galleryOpen} title={galleryOpen ? "返回单图" : "查看当月缩略图"} onClick={toggleGallery}>
+            {galleryOpen ? <ImageIcon size={18} /> : <LayoutGrid size={18} />}
+          </button>
+          <button className={`icon-button gallery-toggle${favoritesOpen ? " active" : ""}`} type="button" aria-label={favoritesOpen ? "返回单图" : "查看我的收藏"} aria-pressed={favoritesOpen} title={favoritesOpen ? "返回单图" : "我的收藏"} onClick={toggleFavorites}>
+            {favoritesOpen ? <ImageIcon size={18} /> : <Heart size={18} />}
           </button>
         </div>
         <div className="primary-actions">
-          <button className="button secondary compact-action" type="button" aria-label="随机一张" title="随机查看一张壁纸" disabled={!wallpaper || Boolean(action)} onClick={() => selectDockDate(randomDate())}>
-            <Shuffle size={17} /><span className="dock-action-label">随机一张</span>
+          <button className="icon-button" type="button" aria-label="随机一张" title="随机查看一张壁纸" disabled={!wallpaper || Boolean(action)} onClick={() => selectDockDate(randomDate())}>
+            <Shuffle size={18} />
           </button>
-          <button className="button secondary compact-action" type="button" aria-label="保存原图" title={settings.saveWithoutPrompt ? "保存到设置中的原图保存位置" : "选择位置和文件名后保存"} disabled={galleryOpen || !wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={saveWallpaper}>
-            <Download size={17} /><span className="dock-action-label">保存原图</span>
+          <button className="icon-button" type="button" aria-label="保存原图" title="保存原图" disabled={!canUsePreview} onClick={saveWallpaper}>
+            <Download size={18} />
           </button>
-          <button className="button primary" type="button" disabled={galleryOpen || !wallpaper || wallpaper.date !== selectedDate || Boolean(action)} onClick={applyWallpaper}>
+          <button className="button primary" type="button" disabled={!canUsePreview} onClick={applyWallpaper}>
             <MonitorDown size={18} /> 设为壁纸
           </button>
           <button className="icon-button dock-settings" type="button" aria-label="打开设置" title="设置" onClick={() => setSettingsOpen(true)}>
@@ -942,7 +1094,7 @@ function App() {
       {toastText && toastText !== dismissedToast && (
         <div className={error ? "toast error" : "toast"} role={error ? "alert" : "status"}>
           <span className="toast-message">{toastText}</span>
-          {error && <button type="button" onClick={() => void loadWallpaper(selectedDate, undefined, true)}><RefreshCw size={15} />重试</button>}
+          {error && <button type="button" onClick={() => void loadWallpaper(selectedDate, wallpaper?.favoriteId ? wallpaper : undefined, true)}><RefreshCw size={15} />重试</button>}
           <button className="toast-dismiss" type="button" aria-label="关闭提示" title="关闭提示" onClick={() => setDismissedToast(toastText)}><X size={15} /></button>
         </div>
       )}
@@ -958,10 +1110,9 @@ function App() {
               <button className="icon-button" type="button" aria-label="关闭设置" onClick={closeSettings}><X size={20} /></button>
             </div>
             <div className="setting-list">
-              <label className="setting-row">
-                <span><strong>每日自动更新</strong><small>应用在后台运行时检查并应用今日壁纸</small></span>
-                <input type="checkbox" role="switch" checked={settings.autoUpdate} onChange={(event) => void updateSettings({ autoUpdate: event.target.checked })} />
-              </label>
+              <div className="setting-row automation-setting-row">
+                <WallpaperAutomation variant="settings" settings={settings} favoriteCount={favorites.length} busy={settingsBusy || favoritesLoading} onChange={(patch) => void updateSettings(patch)} />
+              </div>
               <label className="setting-row">
                 <span><strong>登录后自动启动</strong><small>静默启动并驻留系统托盘</small></span>
                 <input type="checkbox" role="switch" checked={settings.autoStart} disabled={!isTauri()} onChange={(event) => void updateSettings({ autoStart: event.target.checked })} />

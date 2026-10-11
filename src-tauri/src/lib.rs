@@ -1,4 +1,8 @@
+mod favorite_commands;
+mod favorites;
 mod platform;
+
+use favorites::{FavoriteStore, RotationState, WallpaperMode};
 
 use chrono::{Local, NaiveDate};
 use reqwest::Client;
@@ -32,11 +36,15 @@ struct AppState {
     client: Client,
     config_path: PathBuf,
     daily_wallpaper_state_path: PathBuf,
+    favorites: FavoriteStore,
+    favorites_lock: Arc<tokio::sync::Mutex<()>>,
+    rotation_state_path: PathBuf,
     wallpaper_cache: PathBuf,
     archive_cache: Arc<MonthArchiveCache>,
     active_wallpaper: Arc<Mutex<Option<PathBuf>>>,
     last_handled_wallpaper_date: Arc<Mutex<Option<String>>>,
     auto_update_lock: Arc<tokio::sync::Mutex<()>>,
+    automation_wake: Arc<tokio::sync::Notify>,
     software_update_lock: Arc<tokio::sync::Mutex<()>>,
     pending_software_update: Arc<tokio::sync::Mutex<Option<PendingSoftwareUpdate>>>,
     quitting: Arc<std::sync::atomic::AtomicBool>,
@@ -53,7 +61,7 @@ struct PendingSoftwareUpdate {
     version: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Wallpaper {
     date: String,
@@ -138,6 +146,8 @@ struct SoftwareUpdateProgress {
 #[serde(rename_all = "camelCase", default)]
 struct Settings {
     auto_update: bool,
+    wallpaper_mode: Option<WallpaperMode>,
+    favorites_interval_minutes: u64,
     auto_start: bool,
     lock_screen: bool,
     auto_download_updates: bool,
@@ -155,6 +165,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             auto_update: false,
+            wallpaper_mode: None,
+            favorites_interval_minutes: 1440,
             auto_start: false,
             lock_screen: false,
             auto_download_updates: true,
@@ -619,10 +631,31 @@ async fn download_image(client: &Client, image: &str, destination: &Path) -> Res
 }
 
 fn read_settings(path: &Path) -> Settings {
-    fs::read(path)
+    let mut settings: Settings = fs::read(path)
         .ok()
         .and_then(|contents| serde_json::from_slice(&contents).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    settings.normalize();
+    settings
+}
+
+impl Settings {
+    fn mode(&self) -> WallpaperMode {
+        self.wallpaper_mode.unwrap_or(if self.auto_update {
+            WallpaperMode::Daily
+        } else {
+            WallpaperMode::Off
+        })
+    }
+
+    fn normalize(&mut self) {
+        let mode = self.mode();
+        self.wallpaper_mode = Some(mode);
+        self.auto_update = mode == WallpaperMode::Daily;
+        if ![15, 60, 360, 1440].contains(&self.favorites_interval_minutes) {
+            self.favorites_interval_minutes = 1440;
+        }
+    }
 }
 
 fn write_settings(path: &Path, settings: &Settings) -> Result<(), String> {
@@ -731,7 +764,33 @@ fn remember_active_wallpaper(state: &AppState, path: &Path) -> Result<(), String
         .active_wallpaper
         .lock()
         .map_err(|_| "壁纸状态不可用".to_string())? = Some(path.to_path_buf());
+    let mut rotation = read_rotation_state(&state.rotation_state_path);
+    rotation.active_path = Some(path.to_path_buf());
+    if let Err(error) = favorites::write_json(&state.rotation_state_path, &rotation) {
+        eprintln!("无法保存当前壁纸路径：{error}");
+    }
     Ok(())
+}
+
+fn read_rotation_state(path: &Path) -> RotationState {
+    fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+fn postpone_favorite_rotation(state: &AppState, favorite_id: Option<&str>) -> Result<(), String> {
+    let settings = read_settings(&state.config_path);
+    if !settings.mode().is_favorites() {
+        return Ok(());
+    }
+    let mut rotation = read_rotation_state(&state.rotation_state_path);
+    rotation.mode = settings.mode();
+    rotation.last_applied_at = Local::now().timestamp();
+    if let Some(id) = favorite_id {
+        rotation.last_id = Some(id.to_string());
+    }
+    favorites::write_json(&state.rotation_state_path, &rotation)
 }
 
 #[cfg(target_os = "macos")]
@@ -828,6 +887,7 @@ async fn apply_wallpaper(
         &Local::now().format("%Y-%m-%d").to_string(),
         &image_url,
     )?;
+    postpone_favorite_rotation(&state, None)?;
     if set_lock_screen {
         platform::set_lock_screen_wallpaper(&path)?;
     }
@@ -1103,11 +1163,20 @@ fn load_settings<R: Runtime>(app: tauri::AppHandle<R>, state: State<'_, AppState
 }
 
 #[tauri::command]
-fn save_settings<R: Runtime>(
+async fn save_settings<R: Runtime>(
     app: tauri::AppHandle<R>,
     mut settings: Settings,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    let update_guard = state.auto_update_lock.lock().await;
+    let previous = read_settings(&state.config_path);
+    settings.normalize();
+    {
+        let _favorites_guard = state.favorites_lock.lock().await;
+        if settings.mode().is_favorites() && state.favorites.list()?.is_empty() {
+            return Err("请先收藏或导入至少一张图片".to_string());
+        }
+    }
     let autostart = app.autolaunch();
     let autostart_enabled = autostart
         .is_enabled()
@@ -1123,12 +1192,27 @@ fn save_settings<R: Runtime>(
                 .map_err(|error| format!("无法关闭开机启动：{error}"))?;
         }
     }
-    settings.save_directory = read_settings(&state.config_path).save_directory;
+    settings.save_directory = previous.save_directory.clone();
     write_settings(&state.config_path, &settings)?;
-    if settings.auto_update {
+    if previous.mode() != settings.mode() {
+        if settings.mode() == WallpaperMode::Daily {
+            *state
+                .last_handled_wallpaper_date
+                .lock()
+                .map_err(|_| "更新状态不可用")? = None;
+        }
+        let mut rotation = read_rotation_state(&state.rotation_state_path);
+        rotation.mode = WallpaperMode::Off;
+        favorites::write_json(&state.rotation_state_path, &rotation)?;
+    }
+    drop(update_guard);
+    state.automation_wake.notify_one();
+    if settings.mode() != WallpaperMode::Off {
         let handle = app.clone();
         tauri::async_runtime::spawn(async move {
-            let _ = run_auto_update_once(handle).await;
+            if let Err(error) = run_auto_update_once(handle.clone()).await {
+                let _ = handle.emit("auto-update-error", error);
+            }
         });
     }
     Ok(())
@@ -1177,7 +1261,10 @@ async fn run_auto_update_once<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()
     };
     let _update_guard = update_lock.lock().await;
     let settings = read_settings(&config);
-    if !settings.auto_update {
+    if settings.mode().is_favorites() {
+        return favorite_commands::rotate_favorites(&app, &settings).await;
+    }
+    if settings.mode() != WallpaperMode::Daily {
         return Ok(());
     }
     let today = Local::now().format("%Y-%m-%d").to_string();
@@ -1312,6 +1399,7 @@ pub fn run() {
             let cache_dir = app.path().app_cache_dir()?.join("wallpapers");
             let archive_cache_dir = app.path().app_cache_dir()?.join("archive-json");
             let daily_wallpaper_state_path = config_dir.join("daily-wallpaper.json");
+            let rotation_state_path = config_dir.join("favorite-rotation.json");
             fs::create_dir_all(&config_dir)?;
             fs::create_dir_all(&cache_dir)?;
             fs::create_dir_all(&archive_cache_dir)?;
@@ -1324,13 +1412,22 @@ pub fn run() {
                 client,
                 config_path: config_dir.join("settings.json"),
                 daily_wallpaper_state_path: daily_wallpaper_state_path.clone(),
-                active_wallpaper: Arc::new(Mutex::new(latest_cached_wallpaper(&cache_dir))),
+                favorites: FavoriteStore::new(app.path().app_data_dir()?.join("favorites"))?,
+                favorites_lock: Arc::new(tokio::sync::Mutex::new(())),
+                rotation_state_path: rotation_state_path.clone(),
+                active_wallpaper: Arc::new(Mutex::new(
+                    read_rotation_state(&rotation_state_path)
+                        .active_path
+                        .filter(|path| path.is_file())
+                        .or_else(|| latest_cached_wallpaper(&cache_dir)),
+                )),
                 wallpaper_cache: cache_dir,
                 archive_cache: Arc::new(MonthArchiveCache::new(archive_cache_dir)),
                 last_handled_wallpaper_date: Arc::new(Mutex::new(read_daily_wallpaper_state(
                     &daily_wallpaper_state_path,
                 ))),
                 auto_update_lock: Arc::new(tokio::sync::Mutex::new(())),
+                automation_wake: Arc::new(tokio::sync::Notify::new()),
                 software_update_lock: Arc::new(tokio::sync::Mutex::new(())),
                 pending_software_update: Arc::new(tokio::sync::Mutex::new(None)),
                 quitting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -1358,12 +1455,24 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             watch_display_reconnections(handle.clone());
             tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(15)).await;
                 loop {
-                    tokio::time::sleep(Duration::from_secs(15)).await;
                     if let Err(error) = run_auto_update_once(handle.clone()).await {
                         let _ = handle.emit("auto-update-error", error);
                     }
-                    tokio::time::sleep(Duration::from_secs(15 * 60)).await;
+                    let interval = {
+                        let state = handle.state::<AppState>();
+                        if read_settings(&state.config_path).mode().is_favorites() {
+                            60
+                        } else {
+                            15 * 60
+                        }
+                    };
+                    let wake = handle.state::<AppState>().automation_wake.clone();
+                    tokio::select! {
+                        _ = tokio::time::sleep(Duration::from_secs(interval)) => {},
+                        _ = wake.notified() => {},
+                    }
                 }
             });
             let update_handle = app.handle().clone();
@@ -1414,7 +1523,14 @@ pub fn run() {
             open_wallpaper_cache,
             get_save_directory,
             open_save_directory,
-            choose_save_directory
+            choose_save_directory,
+            favorite_commands::get_favorites,
+            favorite_commands::add_favorite,
+            favorite_commands::remove_favorite,
+            favorite_commands::import_favorites,
+            favorite_commands::apply_favorite,
+            favorite_commands::save_favorite,
+            favorite_commands::advance_favorite
         ])
         .build(tauri::generate_context!())
         .expect("error while building My Bing Wallpaper")
@@ -1723,13 +1839,26 @@ mod tests {
 
     #[test]
     fn migrates_existing_settings_with_safe_defaults() {
-        let settings: Settings =
+        let mut settings: Settings =
             serde_json::from_str(r#"{"autoUpdate":true,"autoStart":false,"lockScreen":false}"#)
                 .unwrap();
+        settings.normalize();
+        assert_eq!(settings.mode(), super::WallpaperMode::Daily);
         assert!(settings.auto_download_updates);
         assert_eq!(settings.theme, "system");
         assert!(settings.save_without_prompt);
         assert!(settings.save_directory.is_none());
+    }
+
+    #[test]
+    fn favorite_mode_overrides_legacy_daily_switch() {
+        let mut settings: Settings = serde_json::from_str(
+            r#"{"autoUpdate":true,"wallpaperMode":"favoritesRandom","favoritesIntervalMinutes":60}"#,
+        ).unwrap();
+        settings.normalize();
+        assert!(!settings.auto_update);
+        assert_eq!(settings.mode(), super::WallpaperMode::FavoritesRandom);
+        assert_eq!(settings.favorites_interval_minutes, 60);
     }
 
     #[test]

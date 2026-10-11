@@ -3,6 +3,8 @@ export interface Wallpaper {
   title: string;
   description: string;
   imageUrl: string;
+  favoriteId?: string;
+  localImage?: boolean;
 }
 
 interface RemoteWallpaper {
@@ -14,6 +16,8 @@ interface RemoteWallpaper {
 
 export interface Settings {
   autoUpdate: boolean;
+  wallpaperMode: "off" | "daily" | "favoritesSequential" | "favoritesRandom";
+  favoritesIntervalMinutes: number;
   autoStart: boolean;
   lockScreen: boolean;
   autoDownloadUpdates: boolean;
@@ -28,6 +32,8 @@ export interface DateNavigationState {
 
 export const defaultSettings: Settings = {
   autoUpdate: false,
+  wallpaperMode: "off",
+  favoritesIntervalMinutes: 1440,
   autoStart: false,
   lockScreen: false,
   autoDownloadUpdates: true,

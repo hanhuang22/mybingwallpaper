@@ -30,6 +30,8 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: npm test
+      - name: Test wallpaper scheduling and local collections
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib -- --skip platform::macos::tests::finds_at_least_one_active_display
       - name: Build app for pull requests
         if: github.event_name == 'pull_request'
         run: npm run tauri build -- --target ${{ matrix.target }} --no-bundle
