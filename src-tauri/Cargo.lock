@@ -2313,7 +2313,7 @@ dependencies = [
 
 [[package]]
 name = "my-bing-wallpaper"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "chrono",
  "dirs 6.0.0",
@@ -2329,6 +2329,7 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tokio",
  "url",
@@ -4225,6 +4226,22 @@ dependencies = [
  "thiserror 2.0.20",
  "url",
  "windows",
+ "zbus",
+]
+
+[[package]]
+name = "tauri-plugin-single-instance"
+version = "2.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db817fe9295e19b7d8357e900af31edb93703dd9fb6de524b007b47b6afc63b0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+ "windows-sys 0.60.2",
  "zbus",
 ]
 

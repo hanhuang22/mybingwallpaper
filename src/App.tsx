@@ -159,7 +159,7 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.2.0");
+  const [appVersion, setAppVersion] = useState("1.2.1");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);

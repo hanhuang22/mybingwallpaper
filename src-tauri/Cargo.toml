@@ -1,6 +1,6 @@
 [package]
 name = "my-bing-wallpaper"
-version = "1.2.0"
+version = "1.2.1"
 description = "A modern cross-platform Bing wallpaper app"
 authors = ["My Bing Wallpaper contributors"]
 edition = "2021"
@@ -31,5 +31,6 @@ url = "2"
 tauri-plugin-dialog = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+tauri-plugin-single-instance = "2"
 windows = { version = "0.61", features = ["Storage", "Storage_Streams", "System_UserProfile", "Win32_Foundation", "Win32_Graphics_Dwm"] }
 windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }

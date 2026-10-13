@@ -1306,6 +1306,12 @@ async fn run_auto_update<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), Str
     run_auto_update_once(app).await
 }
 
+fn launched_in_background(arguments: impl IntoIterator<Item = impl AsRef<str>>) -> bool {
+    arguments
+        .into_iter()
+        .any(|argument| argument.as_ref() == "--background")
+}
+
 fn show_main_window<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("main-window-reset-view", ());
@@ -1386,7 +1392,19 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Register this before any plugins, windows, tray icons or background workers.
+    // A duplicate process only notifies the existing instance and exits.
+    #[cfg(target_os = "windows")]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(
+        |app, arguments, _cwd| {
+            if !launched_in_background(&arguments) {
+                show_main_window(app);
+            }
+        },
+    ));
+
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -1442,9 +1460,7 @@ pub fn run() {
                 platform::style_borderless_window(window.hwnd()?);
             }
 
-            let launched_in_background =
-                std::env::args().any(|argument| argument == "--background");
-            if !launched_in_background {
+            if !launched_in_background(std::env::args()) {
                 if let Some(window) = app.get_webview_window("main") {
                     window.show()?;
                     window.set_focus()?;
@@ -1552,10 +1568,11 @@ pub fn run() {
 mod tests {
     use super::{
         bing_image_id, cached_wallpaper_image_is_usable, current_month_cache_is_fresh,
-        effective_save_directory, opens_main_window_on_tray_click, parse_version,
-        read_daily_wallpaper_state, should_skip_auto_update, trusted_external_url, validate_month,
-        wallpaper_cache_path, wallpaper_from_live_bing, write_daily_wallpaper_state, BingArchive,
-        BingModel, MonthArchiveCache, RemoteWallpaper, Settings,
+        effective_save_directory, launched_in_background, opens_main_window_on_tray_click,
+        parse_version, read_daily_wallpaper_state, should_skip_auto_update, trusted_external_url,
+        validate_month, wallpaper_cache_path, wallpaper_from_live_bing,
+        write_daily_wallpaper_state, BingArchive, BingModel, MonthArchiveCache, RemoteWallpaper,
+        Settings,
     };
     use chrono::NaiveDate;
     use std::{
@@ -1572,6 +1589,32 @@ mod tests {
         assert!(validate_month("202613").is_err());
         assert!(validate_month("2026-09").is_err());
         assert!(validate_month("202609/extra").is_err());
+    }
+
+    #[test]
+    fn manual_launches_are_not_treated_as_background_launches() {
+        assert!(!launched_in_background(Vec::<String>::new()));
+        assert!(!launched_in_background(["my-bing-wallpaper.exe"]));
+        assert!(!launched_in_background([
+            "my-bing-wallpaper.exe",
+            "--other-argument"
+        ]));
+        assert!(!launched_in_background([
+            "C:/apps/--background/my-bing-wallpaper.exe"
+        ]));
+    }
+
+    #[test]
+    fn repeated_autostart_launches_remain_in_the_background() {
+        assert!(launched_in_background([
+            "my-bing-wallpaper.exe",
+            "--background"
+        ]));
+        assert!(launched_in_background([
+            "my-bing-wallpaper.exe",
+            "--other-argument",
+            "--background"
+        ]));
     }
 
     #[test]
