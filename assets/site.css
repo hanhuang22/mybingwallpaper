@@ -234,7 +234,7 @@ nav a:hover {
 
 .visual-glow {
   position: absolute;
-  inset: 5% -7% -12% 8%;
+  inset: 5% 0 -12% 8%;
   border-radius: 50%;
   background: rgba(162, 192, 122, 0.27);
   filter: blur(45px);
@@ -327,8 +327,9 @@ nav a:hover {
   border-right: 1px solid var(--line);
 }
 
-.features article:first-child { padding-left: 0; }
-.features article:last-child { padding-right: 0; border-right: 0; }
+.features article:nth-child(3n + 1) { padding-left: 0; }
+.features article:nth-child(3n) { padding-right: 0; border-right: 0; }
+.features article:nth-child(n + 4) { border-top: 1px solid var(--line); }
 
 .feature-number {
   color: #91a198;
@@ -347,6 +348,42 @@ nav a:hover {
   color: var(--muted);
   font-size: 14px;
   line-height: 1.75;
+}
+
+.app-preview {
+  padding-top: 100px;
+  scroll-margin-top: 30px;
+}
+
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.screenshot-grid figure {
+  min-width: 0;
+  margin: 0;
+}
+
+.screenshot-grid a {
+  display: block;
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: 0 14px 38px rgba(24, 45, 35, 0.1);
+  transition: transform 180ms ease;
+}
+
+.screenshot-grid a:hover { transform: translateY(-3px); }
+.screenshot-grid img { width: 100%; height: auto; }
+.screenshot-grid figcaption { padding-top: 18px; }
+.screenshot-grid strong { display: block; font-size: 16px; }
+.screenshot-grid figcaption span {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .gallery-section {
@@ -499,6 +536,21 @@ nav a:hover {
 .download-card .section-kicker { color: var(--lime); }
 .download-card p { color: rgba(255, 255, 255, 0.65); }
 
+.download-platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+  font-size: 12px;
+}
+
+.download-platforms span {
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .download-actions {
   flex: 0 0 auto;
 }
@@ -586,6 +638,10 @@ footer p { margin: 0; }
   }
 
   .features article:last-child { border-bottom: 0; }
+  .features article:nth-child(n + 4) { border-top: 0; }
+
+  .app-preview { padding-top: 72px; }
+  .screenshot-grid { grid-template-columns: 1fr; gap: 30px; }
 
   .gallery-section {
     margin-top: 72px;

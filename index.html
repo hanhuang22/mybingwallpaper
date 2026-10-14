@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f4f1e9" />
     <meta
       name="description"
-      content="必应壁纸 v1.0.0 是一款面向 Windows 与 macOS 的开源桌面应用，支持每日自动更新、历史浏览、原图保存与应用内更新。"
+      content="必应壁纸是一款面向 Windows 与 macOS 的开源桌面应用，支持月览、本地收藏、图片导入、自动换壁纸与应用内更新。"
     />
     <meta property="og:title" content="必应壁纸 · 每天一张好风景" />
     <meta
@@ -35,6 +35,7 @@
       </a>
       <nav aria-label="主导航">
         <a href="#features">功能</a>
+        <a href="#app-preview">界面</a>
         <a href="#gallery">壁纸</a>
         <a href="#download">下载</a>
         <a href="https://github.com/hanhuang22/mybingwallpaper" target="_blank" rel="noreferrer">GitHub</a>
@@ -52,8 +53,8 @@
           <div class="eyebrow"><span></span> Windows 与 macOS</div>
           <h1>每天一张好风景，<br /><em>让桌面自然焕新。</em></h1>
           <p>
-            一款开源、轻量的桌面壁纸应用。浏览每日精选，回看历史风景，
-            也可以让它每天安静地自动更新。现已支持 Windows 与 macOS。
+            浏览每日精选，按月回看风景，收藏喜欢的照片。
+            每日必应或自己的收藏，都能让桌面安静地自动焕新。
           </p>
           <div class="hero-actions">
             <a
@@ -65,7 +66,7 @@
             <a class="button button-secondary" href="https://gitee.com/Hyman25/mybingwallpaper/releases" target="_blank" rel="noreferrer">Gitee 国内下载</a>
           </div>
           <div class="release-note">
-            <span data-release-version>v1.0.0</span>
+            <span data-release-version>v1.2.2</span>
             <span aria-hidden="true">·</span>
             <span>免费开源</span>
             <span aria-hidden="true">·</span>
@@ -77,17 +78,19 @@
           <div class="visual-glow"></div>
           <div class="window-frame">
             <img
-              src="docs/screenshots/main.png"
-              alt="必应壁纸 v1.0.0 的 macOS 主界面"
+              src="docs/screenshots/main.png?v=1.2.2"
+              alt="必应壁纸 v1.2.2 的 macOS 主界面，包含月览与收藏入口"
+              width="2000"
+              height="1440"
             />
           </div>
           <div class="floating-card floating-card-top">
             <span class="status-dot"></span>
-            <div><strong>每日自动更新</strong><small>每天打开都是新风景</small></div>
+            <div><strong>自动换壁纸</strong><small>每日必应，或收藏轮播</small></div>
           </div>
           <div class="floating-card floating-card-bottom">
-            <span class="calendar-icon" aria-hidden="true">21</span>
-            <div><strong>历史随时回看</strong><small>从 2010 年至今</small></div>
+            <span class="calendar-icon" aria-hidden="true">月</span>
+            <div><strong>按月浏览风景</strong><small>从 2010 年至今</small></div>
           </div>
         </div>
       </section>
@@ -95,19 +98,64 @@
       <section class="features section-shell" id="features">
         <article>
           <span class="feature-number">01</span>
-          <h2>每日更新</h2>
-          <p>自动获取当天精选壁纸，也可开启登录启动，让更新自然发生。</p>
+          <h2>每日风景</h2>
+          <p>自动获取今日必应壁纸，开启登录启动后，在后台安静更新。</p>
         </article>
         <article>
           <span class="feature-number">02</span>
-          <h2>历史浏览</h2>
-          <p>通过年份网格、月份和日期回到任意一天，或随机发现一张错过的风景。</p>
+          <h2>月览画册</h2>
+          <p>一次浏览整月缩略图，点击进入大图；也能按年月日寻找旧风景。</p>
         </article>
         <article>
           <span class="feature-number">03</span>
-          <h2>原图品质</h2>
-          <p>原图可保存到自选文件夹，在 Windows 与 macOS 上一键设置为桌面壁纸。</p>
+          <h2>本地收藏</h2>
+          <p>收藏必应壁纸，或导入自己的图片与文件夹。保留独立副本，不怕来源移动。</p>
         </article>
+        <article>
+          <span class="feature-number">04</span>
+          <h2>收藏轮播</h2>
+          <p>顺序循环或随机播放，间隔由你决定。与每日必应共用一个模式，不会互相覆盖。</p>
+        </article>
+        <article>
+          <span class="feature-number">05</span>
+          <h2>舒适预览</h2>
+          <p>背景柔和取色，外观跟随系统深浅色；收起标题，就能欣赏完整画面。</p>
+        </article>
+        <article>
+          <span class="feature-number">06</span>
+          <h2>原图与更新</h2>
+          <p>原图保存到自选文件夹，软件更新可在应用内检查并下载。</p>
+        </article>
+      </section>
+
+      <section class="app-preview section-shell" id="app-preview" aria-label="桌面应用界面">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">INSIDE THE APP</span>
+            <h2>喜欢的风景，留在身边。</h2>
+            <p>新版 macOS 实机截图。Windows 版功能相同，窗口控件保留平台习惯。</p>
+          </div>
+        </div>
+        <div class="screenshot-grid">
+          <figure>
+            <a href="docs/screenshots/month.png" target="_blank" rel="noreferrer" aria-label="放大月览截图">
+              <img src="docs/screenshots/month.png?v=1.2.2" alt="按月查看壁纸缩略图" width="2000" height="1440" loading="lazy" />
+            </a>
+            <figcaption><strong>把整月风景铺开</strong><span>缩略图轻量加载，点击查看大图。</span></figcaption>
+          </figure>
+          <figure>
+            <a href="docs/screenshots/favorites.png" target="_blank" rel="noreferrer" aria-label="放大收藏截图">
+              <img src="docs/screenshots/favorites.png?v=1.2.2" alt="本地收藏与图片导入，右上角选择自动换壁纸模式" width="2000" height="1440" loading="lazy" />
+            </a>
+            <figcaption><strong>收好自己的画册</strong><span>收藏、导入和轮播，集中在一处。</span></figcaption>
+          </figure>
+          <figure>
+            <a href="docs/screenshots/settings.png" target="_blank" rel="noreferrer" aria-label="放大设置截图">
+              <img src="docs/screenshots/settings.png?v=1.2.2" alt="自动换壁纸、外观和原图保存位置设置" width="2000" height="1440" loading="lazy" />
+            </a>
+            <figcaption><strong>按自己的习惯使用</strong><span>外观、保存位置和更新，随手调整。</span></figcaption>
+          </figure>
+        </div>
       </section>
 
       <section class="gallery-section" id="gallery">
@@ -140,7 +188,11 @@
           <div>
             <span class="section-kicker">DESKTOP APP</span>
             <h2>下一张好风景，交给它。</h2>
-            <p>从 GitHub 或 Gitee 下载适用于 Windows 与 macOS 的安装包。请选择与你的系统和处理器对应的文件；<code>.sig</code>、<code>.app.tar.gz</code> 和 <code>latest.json</code> 用于应用内更新，无需手动下载。</p>
+            <p>选择适合你电脑的安装包。</p>
+            <div class="download-platforms" aria-label="支持的平台">
+              <span>Windows 10/11 · x64</span>
+              <span>macOS 12+ · Apple Silicon</span>
+            </div>
           </div>
           <div class="download-actions">
             <a
