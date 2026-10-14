@@ -15,6 +15,8 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
+#[cfg(target_os = "macos")]
+use tauri::menu::{AboutMetadata, Submenu};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -1321,6 +1323,53 @@ fn show_main_window<R: Runtime>(app: &tauri::AppHandle<R>) {
     }
 }
 
+fn handle_app_menu_action<R: Runtime>(app: &tauri::AppHandle<R>, id: &str) {
+    match id {
+        "show" => show_main_window(app),
+        "settings" => {
+            show_main_window(app);
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.emit("main-window-open-settings", ());
+            }
+        }
+        "quit" => {
+            app.state::<AppState>()
+                .quitting
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            app.exit(0);
+        }
+        _ => {}
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn build_application_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let name = app.config().product_name.as_deref().unwrap_or("必应壁纸");
+    let application = Submenu::with_items(
+        app,
+        name,
+        true,
+        &[
+            &PredefinedMenuItem::about(
+                app,
+                Some("关于"),
+                Some(AboutMetadata {
+                    name: Some(name.to_string()),
+                    version: Some(app.package_info().version.to_string()),
+                    // Leave credits unset so AppKit loads the bundled Credits.html links.
+                    ..Default::default()
+                }),
+            )?,
+            &MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, Some("隐藏"))?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?,
+        ],
+    )?;
+    Menu::with_items(app, &[&application])
+}
+
 fn opens_main_window_on_tray_click(button: MouseButton, state: MouseButtonState) -> bool {
     let opening_state = if cfg!(target_os = "macos") {
         MouseButtonState::Down
@@ -1332,10 +1381,10 @@ fn opens_main_window_on_tray_click(button: MouseButton, state: MouseButtonState)
 
 fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
-    let today = MenuItem::with_id(app, "today", "应用今日壁纸", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &today, &separator, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &settings, &separator, &quit])?;
     let mut builder = TrayIconBuilder::with_id("main").show_menu_on_left_click(false);
     // An attached NSStatusItem menu can consume left clicks before Tauri sees them.
     // On macOS, keep it detached and present it only for an explicit right click.
@@ -1372,20 +1421,6 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
                 }
             }
         })
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => show_main_window(app),
-            "today" => {
-                show_main_window(app);
-                let _ = app.emit("tray-apply-today", ());
-            }
-            "quit" => {
-                app.state::<AppState>()
-                    .quitting
-                    .store(true, std::sync::atomic::Ordering::SeqCst);
-                app.exit(0);
-            }
-            _ => {}
-        })
         .build(app)?;
     Ok(())
 }
@@ -1393,6 +1428,8 @@ fn build_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(build_application_menu);
     // Register this before any plugins, windows, tray icons or background workers.
     // A duplicate process only notifies the existing instance and exits.
     #[cfg(target_os = "windows")]
@@ -1405,6 +1442,7 @@ pub fn run() {
     ));
 
     builder
+        .on_menu_event(|app, event| handle_app_menu_action(app, event.id.as_ref()))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

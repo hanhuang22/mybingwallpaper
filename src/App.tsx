@@ -242,11 +242,18 @@ function App() {
 
   useEffect(() => {
     if (!isTauri()) return;
-    const listener = listen("main-window-reset-view", () => {
-      closeSettings();
-      closeGallery();
-    });
-    return () => { void listener.then((unlisten) => unlisten()); };
+    const listeners = Promise.all([
+      listen("main-window-reset-view", () => {
+        closeSettings();
+        closeGallery();
+      }),
+      listen("main-window-open-settings", () => {
+        closeGallery();
+        settingsOpenRef.current = true;
+        setSettingsOpen(true);
+      }),
+    ]);
+    return () => { void listeners.then((unlisteners) => unlisteners.forEach((unlisten) => unlisten())); };
   }, [closeGallery, closeSettings]);
 
   useEffect(() => () => cancelUpdateStatusReset(), [cancelUpdateStatusReset]);
@@ -469,19 +476,6 @@ function App() {
     let disposed = false;
     const stopListening: Array<() => void> = [];
     void Promise.all([
-      listen("tray-apply-today", () => {
-        const currentDate = formatDateKey(new Date());
-        favoritePreviewRef.current = false;
-        syncToday(currentDate);
-        setSelectedDate(currentDate);
-        void getWallpaper(currentDate).then((record) => {
-          return invoke("apply_wallpaper", {
-            imageUrl: record.imageUrl,
-            date: currentDate,
-            setLockScreen: false,
-          });
-        });
-      }),
       listen<string>("auto-update-complete", (event) => {
         syncToday(event.payload);
         setError((current) => current.startsWith("自动更新失败：") ? "" : current);
