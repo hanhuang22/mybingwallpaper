@@ -7,13 +7,23 @@
 
 [项目网站](https://hanhuang22.github.io/mybingwallpaper/) · [GitHub 下载](https://github.com/hanhuang22/mybingwallpaper/releases) · [Gitee 国内下载](https://gitee.com/Hyman25/mybingwallpaper/releases)
 
-当前稳定版为 **v1.2.1**。桌面端支持跟随系统外观、历史年月快速选择、按月浏览缩略图、本地收藏与图片导入、每日自动换壁纸或收藏轮播，以及在应用内检查并下载签名校验的更新。以下截图来自 macOS 版 v1.0.0；Windows 版功能相同，系统控件外观可能略有差异。
+当前稳定版为 **v1.2.2**。浏览每日与历史壁纸，收藏喜欢的照片，也可以导入自己的图片，让桌面按你的选择自动换新。
+
+本版整理了托盘与 macOS 菜单，增加托盘“设置”和“关于”窗口中的官网入口，并移除了图片区域不适用的浏览器右键菜单。以下为新版 macOS 实机截图；Windows 版功能相同，窗口控件保留平台习惯。
 
 ## 界面预览
 
 ![主界面](docs/screenshots/main.png)
 
 <table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/month.png" alt="按月查看壁纸缩略图"></td>
+    <td width="50%"><img src="docs/screenshots/favorites.png" alt="本地收藏、图片导入与自动换壁纸模式"></td>
+  </tr>
+  <tr>
+    <td align="center">月览：整月缩略图，点击进入大图</td>
+    <td align="center">收藏：本地副本、图片导入与轮播</td>
+  </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/calendar.png" alt="年份网格选择器"></td>
     <td width="50%"><img src="docs/screenshots/settings.png" alt="外观、自动更新与保存位置设置"></td>
@@ -31,12 +41,13 @@
 - 本地收藏与图片导入：收藏必应壁纸，或选择图片/文件夹导入；保留原图副本并生成独立的小尺寸缩略图
 - 保存原图默认直接写入图片目录，也可在设置中更换文件夹或开启每次询问位置
 - Windows 与 macOS 桌面壁纸设置
-- 系统托盘/菜单栏常驻，关闭窗口不退出
+- 系统托盘/菜单栏常驻，左键打开主界面、右键打开菜单；可直接进入设置，关闭窗口不退出
 - Windows 单实例运行：再次双击快捷方式或点击开始菜单时唤起已有窗口，不会重复创建后台进程和托盘图标
 - 每日自动更新与登录后自动启动
 - 自动换壁纸统一选择必应每日、收藏顺序循环或收藏随机；同一时间只运行一个模式
 - Windows 锁屏壁纸实验功能
-- 壁纸说明按需展开，默认保留简洁预览
+- 壁纸说明按需展开，也可收起标题与局部阴影，完整预览图片
+- 图片区域不显示浏览器右键菜单；页码等输入框保留原生复制、粘贴菜单
 - 跟随系统浅色/深色外观，也可在设置中手动覆盖
 - 签名校验的软件更新，可自动下载并由用户决定何时重启安装
 - 一键打开壁纸缓存目录
@@ -56,14 +67,16 @@ macOS 没有公开的锁屏壁纸设置接口，因此不会显示可用的锁�
 
 ## 下载
 
-安装包同时发布到 [GitHub Releases](https://github.com/hanhuang22/mybingwallpaper/releases) 和 [Gitee Releases](https://gitee.com/Hyman25/mybingwallpaper/releases)。GitHub 访问不稳定时可使用 Gitee 国内下载入口。请在发布页选择与你的系统和处理器对应的 `.exe` 或 `.dmg`；`.sig`、`.app.tar.gz` 和 `latest.json` 是应用内自动更新所需文件，不是普通安装包。从 v1.0.2 起，仅构建 Windows x64 NSIS `.exe` 和 macOS Apple Silicon `.dmg`，不再构建 MSI、Windows x86/ARM64 或 macOS Intel；历史 Release 不受影响。
+从 [GitHub](https://github.com/hanhuang22/mybingwallpaper/releases/latest) 或 [Gitee 国内下载](https://gitee.com/Hyman25/mybingwallpaper/releases) 选择适合你电脑的安装包。当前仅提供 Windows x64 `.exe` 和 macOS Apple Silicon `.dmg`，历史版本仍保留在发布页。
 
 若此前使用 MSI 安装，切换到 NSIS `.exe` 时建议先卸载旧版 MSI，再安装新版，以免 Windows 的“已安装的应用”中留下重复记录。
 
 | 文件名格式 | 适用系统 |
 | --- | --- |
 | `mybingwallpaper-v<版本>-windows-x64-setup.exe` | Windows 10/11，Intel 或 AMD 64 位（推荐安装程序） |
-| `mybingwallpaper-v<版本>-macos-apple-silicon.dmg` | Apple Silicon Mac（M1、M2、M3、M4 等） |
+| `mybingwallpaper-v<版本>-macos-apple-silicon.dmg` | macOS 12 及以上，Apple Silicon Mac（M 系列） |
+
+其他附件（`.sig`、`.app.tar.gz`、`latest.json`）供应用内更新使用，无需手动下载。
 
 Windows 11 ARM 设备可以通过系统模拟运行 x64 安装包。若此前安装了 Windows ARM64 原生版，切换到 x64 版请手动安装；不自动向 ARM64 原生版推送未经验证的跨架构更新。32 位 Windows 和 Intel Mac 无法运行对应的新版本，仍可使用历史版本。
 
