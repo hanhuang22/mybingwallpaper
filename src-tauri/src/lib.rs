@@ -20,7 +20,7 @@ use tauri::menu::{AboutMetadata, Submenu};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, Runtime, State, WindowEvent,
+    Emitter, LogicalSize, Manager, Runtime, State, Window, WindowEvent,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_dialog::DialogExt;
@@ -50,6 +50,69 @@ struct AppState {
     software_update_lock: Arc<tokio::sync::Mutex<()>>,
     pending_software_update: Arc<tokio::sync::Mutex<Option<PendingSoftwareUpdate>>>,
     quitting: Arc<std::sync::atomic::AtomicBool>,
+    window_size_path: PathBuf,
+    normal_window_size: Mutex<Option<WindowSize>>,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+struct WindowSize {
+    width: u32,
+    height: u32,
+}
+
+impl WindowSize {
+    fn is_valid(self) -> bool {
+        (720..=8192).contains(&self.width) && (540..=8192).contains(&self.height)
+    }
+}
+
+fn read_window_size(path: &Path) -> Option<WindowSize> {
+    serde_json::from_slice::<WindowSize>(&fs::read(path).ok()?)
+        .ok()
+        .filter(|size| size.is_valid())
+}
+
+fn remember_normal_window_size<R: Runtime>(window: &Window<R>) {
+    if window.is_maximized().unwrap_or(true)
+        || window.is_minimized().unwrap_or(true)
+        || window.is_fullscreen().unwrap_or(true)
+    {
+        return;
+    }
+    let (Ok(physical), Ok(scale)) = (window.inner_size(), window.scale_factor()) else {
+        return;
+    };
+    let logical = physical.to_logical::<f64>(scale);
+    let size = WindowSize {
+        width: logical.width.round() as u32,
+        height: logical.height.round() as u32,
+    };
+    if size.is_valid() {
+        if let Some(state) = window.app_handle().try_state::<AppState>() {
+            if let Ok(mut saved) = state.normal_window_size.lock() {
+                *saved = Some(size);
+            }
+        }
+    }
+}
+
+fn save_normal_window_size<R: Runtime>(window: &Window<R>) {
+    remember_normal_window_size(window);
+    let Some(state) = window.app_handle().try_state::<AppState>() else {
+        return;
+    };
+    let size = state
+        .normal_window_size
+        .lock()
+        .ok()
+        .and_then(|saved| *saved);
+    if let Some(size) = size {
+        if let Ok(contents) = serde_json::to_vec(&size) {
+            if let Err(error) = fs::write(&state.window_size_path, contents) {
+                eprintln!("无法保存窗口大小：{error}");
+            }
+        }
+    }
 }
 
 struct MonthArchiveCache {
@@ -1045,6 +1108,9 @@ async fn install_software_update<R: Runtime>(app: tauri::AppHandle<R>) -> Result
     let Some(pending) = pending_update.lock().await.take() else {
         return Err("更新尚未下载完成".to_string());
     };
+    if let Some(window) = app.get_webview_window("main") {
+        save_normal_window_size(&window.as_ref().window());
+    }
     pending
         .update
         .install(&pending.bytes)
@@ -1333,6 +1399,9 @@ fn handle_app_menu_action<R: Runtime>(app: &tauri::AppHandle<R>, id: &str) {
             }
         }
         "quit" => {
+            if let Some(window) = app.get_webview_window("main") {
+                save_normal_window_size(&window.as_ref().window());
+            }
             app.state::<AppState>()
                 .quitting
                 .store(true, std::sync::atomic::Ordering::SeqCst);
@@ -1456,6 +1525,8 @@ pub fn run() {
             let archive_cache_dir = app.path().app_cache_dir()?.join("archive-json");
             let daily_wallpaper_state_path = config_dir.join("daily-wallpaper.json");
             let rotation_state_path = config_dir.join("favorite-rotation.json");
+            let window_size_path = config_dir.join("window-size.json");
+            let saved_window_size = read_window_size(&window_size_path);
             fs::create_dir_all(&config_dir)?;
             fs::create_dir_all(&cache_dir)?;
             fs::create_dir_all(&archive_cache_dir)?;
@@ -1487,6 +1558,8 @@ pub fn run() {
                 software_update_lock: Arc::new(tokio::sync::Mutex::new(())),
                 pending_software_update: Arc::new(tokio::sync::Mutex::new(None)),
                 quitting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                window_size_path,
+                normal_window_size: Mutex::new(saved_window_size),
             });
             build_tray(app)?;
 
@@ -1496,6 +1569,23 @@ pub fn run() {
                 // Tauri's undecorated shadow reserves a native 1px strip above the webview.
                 window.set_shadow(false)?;
                 platform::style_borderless_window(window.hwnd()?);
+            }
+
+            if let (Some(window), Some(size)) = (app.get_webview_window("main"), saved_window_size)
+            {
+                let mut width = size.width;
+                let mut height = size.height;
+                if let Some(monitor) = window.current_monitor().ok().flatten() {
+                    let screen = monitor.size().to_logical::<f64>(monitor.scale_factor());
+                    width = width.min(screen.width.floor() as u32).max(720);
+                    height = height.min(screen.height.floor() as u32).max(540);
+                }
+                if let Err(error) = window
+                    .set_size(LogicalSize::new(width, height))
+                    .and_then(|_| window.center())
+                {
+                    eprintln!("无法恢复窗口大小：{error}");
+                }
             }
 
             if !launched_in_background(std::env::args()) {
@@ -1546,7 +1636,14 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let WindowEvent::Resized(_) = event {
+                remember_normal_window_size(window);
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
+                save_normal_window_size(window);
                 let quitting = window
                     .app_handle()
                     .state::<AppState>()
