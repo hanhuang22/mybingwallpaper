@@ -1,15 +1,15 @@
 {
-  "version": "1.2.2",
-  "notes": "mybingwallpaper v1.2.2",
-  "pub_date": "2026-10-14T12:16:03.634Z",
+  "version": "1.2.3",
+  "notes": "mybingwallpaper v1.2.3",
+  "pub_date": "2026-10-15T14:46:03.441Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v1.2.2/mybingwallpaper-v1.2.2-windows-x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDFTbzB4MDZ0N3ZuWjdVVHBWdzJyMmNBMjFFeHU4aGlLL1hpei91S1c4enR1Wk5BMkY4bmNWYkxMS1p2amNoQ1pKSUI4ZHZsWC9BNTV6em4rZDdrdmdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxOTc5MzE2CWZpbGU65b+F5bqU5aOB57q4XzEuMi4yX3g2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjIuMgpNSlo2TU1jQ0d5dituL2pWZWY2MWYzWlQyTTAyd2hROHF5eVJsV3U5amJ3eVRaWXVhTFZySE45Z0p3MllhRzJPZkhHVGJjRWh2NzhPZ2p6TEVuVHZEdz09Cg=="
+      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v1.2.3/mybingwallpaper-v1.2.3-windows-x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDFoTkMxUUprb3krS2d4bENVUzZBNThsNXdoYUs1S0trWStYZm9UNlc2Mlc5T2orZDZOQy82eVUvMTNtUkRYTmtNMEhPQTBSRk0rWlk4b21wRGdWNkFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMDc0NTk5CWZpbGU65b+F5bqU5aOB57q4XzEuMi4zX3g2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjIuMwpCUWhvbjBZVTE4YXBmRWtWbUVWMzhYSnc3aWd0S2xZdjRHcW1XQkRBbGZGakQ5Ym4yM0VBOEc2dmd1TEpjejZQcEo0QmtaSU9GUXU3dDZqWmZrZmxBUT09Cg=="
     },
     "darwin-aarch64": {
-      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v1.2.2/mybingwallpaper-v1.2.2-macos-apple-silicon.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTHp2T0tNWlpKRS9MeDhSQWtwWDduMXlMTjNHUWtkVVNvOVpqcWRHMkgwOVJ2RTZjQWcwdlk0SVJWS3BoenIvMnV6b2VLTzVnQkQxUkFDYkdmU29kWEFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxOTc4OTcwCWZpbGU65b+F5bqU5aOB57q4LmFwcC50YXIuZ3oJdmVyc2lvbjoxLjIuMgpYcm1pSDVBQUJPelZIWHUyQk5Qbm9uMkx1M0p2dC9OUTlrcmNvaVd2Zit3OGlZelhZOTRYektPZEVKY0UzWFh6dXU0d2c1ZXY5eCtHMklBR1BKbjNDZz09Cg=="
+      "url": "https://gitee.com/Hyman25/mybingwallpaper/releases/download/v1.2.3/mybingwallpaper-v1.2.3-macos-apple-silicon.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT2oxakJNWmZBTDh6YXhWa09Rb0NsditISXdxMkpXWTF2a2JaTmtNUXE3RGRXUGtUbmNpMncvSURJREhTMWZjZDZ6aXJoV2Q1UGh0bGtLaEozaWRmTDBrMk92YmxsWmc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMDc0NDg0CWZpbGU65b+F5bqU5aOB57q4LmFwcC50YXIuZ3oJdmVyc2lvbjoxLjIuMwpST2hqWUYvNm81U3pSM3FJNmVCemw2aDBPOGpkMnhjNjZiYVFXS1p5dmlvTXFQMGwrdlQydUQ3RUJod0JqMVZDL1ZEUGRkTDA0VkdFSkRpRlQxTDhCdz09Cg=="
     }
   }
 }
