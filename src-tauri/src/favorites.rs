@@ -172,6 +172,10 @@ impl FavoriteStore {
             .map(|records| records.iter().map(|record| self.favorite(record)).collect())
     }
 
+    pub fn images_directory(&self) -> PathBuf {
+        self.directory.join("images")
+    }
+
     pub fn add(&self, bytes: &[u8], details: FavoriteDetails) -> Result<(Favorite, bool), String> {
         if bytes.is_empty() || bytes.len() > 50 * 1024 * 1024 {
             return Err("图片为空或超过 50 MB".to_string());
@@ -369,6 +373,7 @@ mod tests {
             rand::random::<u64>()
         ));
         let store = FavoriteStore::new(directory.clone()).unwrap();
+        assert_eq!(store.images_directory(), directory.join("images"));
         let source = directory.join("original.png");
         image::RgbImage::from_pixel(20, 10, image::Rgb([255, 120, 20]))
             .save(&source)

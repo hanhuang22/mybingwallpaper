@@ -7,7 +7,7 @@ import { FavoritesGallery } from "./FavoritesGallery";
 const props = {
   settings: defaultSettings, loading: false, busy: false, settingsBusy: false,
   feedback: "", error: "", pendingId: null,
-  onSelect: () => {}, onRemove: () => {}, onImport: () => {}, onSettings: () => {}, onAdvance: () => {},
+  onSelect: () => {}, onRemove: () => {}, onImport: () => {}, onOpenDirectory: () => {}, onSettings: () => {}, onAdvance: () => {},
 };
 const favorites = Array.from({ length: 31 }, (_, index): Favorite => ({
   id: String(index), source: "local", title: `Picture ${index + 1}`, date: null,
@@ -37,5 +37,12 @@ describe("favorites gallery", () => {
   it("does not show pagination for 30 or fewer images", () => {
     const html = renderToStaticMarkup(<FavoritesGallery {...props} favorites={favorites.slice(0, 30)} />);
     expect(html).not.toContain('aria-label="收藏分页"');
+  });
+  it("exposes the collection folder without confusing it with saved originals", () => {
+    const html = renderToStaticMarkup(<FavoritesGallery {...props} favorites={[]} />);
+    expect(html).toContain('aria-label="打开收藏文件夹"');
+    expect(html).toContain("导入的图片会复制到收藏库。");
+    expect(html).not.toContain("已保存本地副本");
+    expect(html).not.toContain("保存原图");
   });
 });

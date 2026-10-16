@@ -159,7 +159,7 @@ function App() {
       return "browser";
     },
   );
-  const [appVersion, setAppVersion] = useState("1.2.1");
+  const [appVersion, setAppVersion] = useState("1.2.4");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
@@ -587,17 +587,13 @@ function App() {
     }
     setAction("saving");
     setError("");
-    setMessage(settings.saveWithoutPrompt ? "正在保存原图…" : "请选择保存位置…");
+    setMessage("正在保存原图…");
     try {
       const path = wallpaper.favoriteId
-        ? await invoke<string | null>("save_favorite", { id: wallpaper.favoriteId })
-        : await invoke<string | null>("save_wallpaper", { imageUrl: wallpaper.imageUrl, date: wallpaper.date });
-      if (path) {
-        setMessage(`已保存到 ${path}`);
-        window.setTimeout(() => setMessage(""), 4500);
-      } else {
-        setMessage("");
-      }
+        ? await invoke<string>("save_favorite", { id: wallpaper.favoriteId })
+        : await invoke<string>("save_wallpaper", { imageUrl: wallpaper.imageUrl, date: wallpaper.date });
+      setMessage(`已保存到 ${path}`);
+      window.setTimeout(() => setMessage(""), 4500);
     } catch (reason) {
       setError(`保存失败：${reason instanceof Error ? reason.message : String(reason)}`);
       setMessage("");
@@ -618,15 +614,16 @@ function App() {
     }
   };
 
-  const openWallpaperCache = async () => {
+  const openFavoritesDirectory = async () => {
     if (!isTauri()) {
-      setError("请在桌面应用中打开壁纸缓存目录");
+      setFavoritesError("请在桌面应用中打开收藏文件夹");
       return;
     }
+    setFavoritesError("");
     try {
-      await invoke("open_wallpaper_cache");
+      await invoke("open_favorites_directory");
     } catch (reason) {
-      setError(`打开缓存目录失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      setFavoritesError(`打开收藏文件夹失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
 
@@ -813,7 +810,7 @@ function App() {
         description: wallpaper.description, sourceUrl: wallpaper.imageUrl,
         imagePath: wallpaper.imageUrl, thumbnailPath: wallpaper.imageUrl, addedAt: Date.now(),
       }]);
-      setMessage(isTauri() ? "已加入收藏，图片已保存在本地" : "已加入浏览器预览收藏");
+      setMessage(isTauri() ? "已加入收藏" : "已加入浏览器预览收藏");
       window.setTimeout(() => setMessage(""), 2500);
     } catch (reason) { setError(`收藏失败：${String(reason)}`); }
     finally { setFavoritesBusy(false); }
@@ -828,7 +825,7 @@ function App() {
       const result = await invoke<FavoriteImportResult | null>("import_favorites", { folder });
       if (!result) return;
       setFavorites(result.favorites);
-      setFavoritesFeedback(`已导入 ${result.addedCount} 张${result.duplicateCount ? `，跳过 ${result.duplicateCount} 张重复图片` : ""}；已保存本地副本。`);
+      setFavoritesFeedback(`已导入 ${result.addedCount} 张到收藏${result.duplicateCount ? `，跳过 ${result.duplicateCount} 张重复图片` : ""}`);
       if (result.errors.length) setFavoritesError(`${result.errors.length} 张导入失败：${result.errors.slice(0, 3).join("；")}`);
     } catch (reason) { setFavoritesError(`导入失败：${String(reason)}`); }
     finally { setFavoritesBusy(false); }
@@ -978,7 +975,7 @@ function App() {
           </div>
         </div>
         {wallpaper && !collectionOpen && (
-          <button type="button" className={`preview-favorite${currentFavorite ? " active" : ""}`} aria-label={currentFavorite ? "取消收藏当前壁纸" : "收藏当前壁纸"} title={currentFavorite ? "取消收藏" : "收藏壁纸并保存本地副本"} aria-pressed={Boolean(currentFavorite)} disabled={favoritesBusy || favoritesLoading || Boolean(action)} onClick={() => void toggleCurrentFavorite()}>
+          <button type="button" className={`preview-favorite${currentFavorite ? " active" : ""}`} aria-label={currentFavorite ? "取消收藏当前壁纸" : "收藏当前壁纸"} title={currentFavorite ? "取消收藏" : "收藏壁纸"} aria-pressed={Boolean(currentFavorite)} disabled={favoritesBusy || favoritesLoading || Boolean(action)} onClick={() => void toggleCurrentFavorite()}>
             {favoritesBusy ? <LoaderCircle className="spin" size={19} /> : <Heart size={19} fill={currentFavorite ? "currentColor" : "none"} />}
           </button>
         )}
@@ -1020,6 +1017,7 @@ function App() {
             }}
             onRemove={(favorite) => void removeFavorite(favorite)}
             onImport={(folder) => void importFavorites(folder)}
+            onOpenDirectory={() => void openFavoritesDirectory()}
             onSettings={(patch) => { setFavoritesError(""); void updateSettings(patch); }}
             onAdvance={() => void advanceFavorite()}
           />
@@ -1126,7 +1124,7 @@ function App() {
                 </>
               )}
               <div className="setting-row theme-setting-row">
-                <span><strong>外观</strong><small>默认跟随系统的浅色或深色模式</small></span>
+                <span><strong>外观</strong></span>
                 <div className="theme-options" role="group" aria-label="外观主题">
                   <button className={settings.theme === "system" ? "selected" : ""} type="button" title="跟随系统" onClick={() => void updateSettings({ theme: "system" })}>
                     <MonitorDown size={15} /><span>系统</span>
@@ -1153,16 +1151,6 @@ function App() {
                     {choosingSaveDirectory ? <LoaderCircle className="spin" size={16} /> : <Folder size={16} />}更改
                   </button>
                 </div>
-              </div>
-              <label className="setting-row">
-                <span><strong>直接保存到此位置</strong><small>关闭后，每次保存原图都会询问位置和文件名</small></span>
-                <input type="checkbox" role="switch" checked={settings.saveWithoutPrompt} onChange={(event) => void updateSettings({ saveWithoutPrompt: event.target.checked })} />
-              </label>
-              <div className="setting-row setting-action-row">
-                <span><strong>壁纸缓存</strong><small>仅供自动更新和设为壁纸使用，与原图保存位置分开</small></span>
-                <button className="settings-action" type="button" onClick={openWallpaperCache}>
-                  <FolderOpen size={16} />打开缓存
-                </button>
               </div>
               <div className="setting-row setting-action-row">
                 <span>
@@ -1213,7 +1201,6 @@ function App() {
               <button type="button" onClick={() => void openExternal(OFFICIAL_SITE)}><Globe2 size={15} />官方网站<ExternalLink size={13} /></button>
               <button type="button" onClick={() => void openExternal(GITEE_RELEASES)}><PackageOpen size={15} />国内下载<ExternalLink size={13} /></button>
             </div>
-            <p className="settings-note">关闭主窗口后应用仍会驻留托盘。请通过托盘菜单完全退出。</p>
           </aside>
         </div>
       )}

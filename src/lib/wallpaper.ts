@@ -22,7 +22,6 @@ export interface Settings {
   lockScreen: boolean;
   autoDownloadUpdates: boolean;
   theme: "system" | "light" | "dark";
-  saveWithoutPrompt: boolean;
 }
 
 export interface DateNavigationState {
@@ -38,7 +37,6 @@ export const defaultSettings: Settings = {
   lockScreen: false,
   autoDownloadUpdates: true,
   theme: "system",
-  saveWithoutPrompt: true,
 };
 
 export function formatDateKey(date: Date): string {

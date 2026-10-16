@@ -19,6 +19,19 @@ pub async fn get_favorites(state: State<'_, AppState>) -> Result<Vec<Favorite>, 
 }
 
 #[tauri::command]
+pub fn open_favorites_directory<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // Only expose the original images, not the collection index or thumbnails.
+    let directory = state.favorites.images_directory();
+    fs::create_dir_all(&directory).map_err(|error| format!("无法创建收藏文件夹：{error}"))?;
+    app.opener()
+        .open_path(directory.to_string_lossy().into_owned(), None::<&str>)
+        .map_err(|error| format!("无法打开收藏文件夹：{error}"))
+}
+
+#[tauri::command]
 pub async fn add_favorite(
     record: Wallpaper,
     state: State<'_, AppState>,
@@ -282,18 +295,8 @@ pub async fn advance_favorite<R: Runtime>(
     choose_and_apply(&app, &settings, rotation.last_id.as_deref()).await
 }
 
-#[tauri::command]
-pub async fn save_favorite<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    id: String,
-    state: State<'_, AppState>,
-) -> Result<Option<String>, String> {
-    let favorite = {
-        let _guard = state.favorites_lock.lock().await;
-        favorite_by_id(&state, &id)?
-    };
-    let settings = read_settings(&state.config_path);
-    let directory = effective_save_directory(&settings)?;
+fn export_favorite_image(favorite: &Favorite, settings: &Settings) -> Result<PathBuf, String> {
+    let directory = prepare_save_directory(settings)?;
     let extension = favorite
         .image_path
         .extension()
@@ -311,33 +314,72 @@ pub async fn save_favorite<R: Runtime>(
         &favorite.id[..8],
         extension
     );
-    let destination = if settings.save_without_prompt {
-        if settings.save_directory.is_some() && !directory.is_dir() {
-            return Err("所选保存目录已不可用，请在设置中重新选择".into());
-        }
-        fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
-        directory.join(file_name)
-    } else {
-        let window = app.get_webview_window("main").ok_or("无法找到应用窗口")?;
-        let (sender, receiver) = tokio::sync::oneshot::channel();
-        app.dialog()
-            .file()
-            .set_parent(&window)
-            .set_title("保存原图")
-            .set_directory(dialog_directory(&directory)?)
-            .set_file_name(file_name)
-            .add_filter("图片", &[extension.as_ref()])
-            .save_file(move |selection| {
-                let _ = sender.send(selection);
-            });
-        let Some(selection) = receiver.await.map_err(|_| "无法获取所选保存位置")? else {
-            return Ok(None);
-        };
-        selection.into_path().map_err(|error| error.to_string())?
-    };
+    let destination = directory.join(file_name);
     if destination != favorite.image_path {
         fs::copy(&favorite.image_path, &destination)
             .map_err(|error| format!("保存图片失败：{error}"))?;
     }
-    Ok(Some(destination.to_string_lossy().into_owned()))
+    Ok(destination)
+}
+
+#[tauri::command]
+pub async fn save_favorite(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    let _guard = state.favorites_lock.lock().await;
+    let favorite = favorite_by_id(&state, &id)?;
+    let settings = read_settings(&state.config_path);
+    export_favorite_image(&favorite, &settings).map(|path| path.to_string_lossy().into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn favorite_exports_use_save_location_and_leave_collection_copies_intact() {
+        let root = std::env::temp_dir().join(format!(
+            "mybingwallpaper-favorite-export-{}-{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        let store = FavoriteStore::new(root.join("favorites")).unwrap();
+        let directory = root.join("exports");
+        fs::create_dir_all(&directory).unwrap();
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            20,
+            10,
+            image::Rgb([12, 90, 160]),
+        ))
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .unwrap();
+        let (favorite, _) = store
+            .add(
+                bytes.get_ref(),
+                FavoriteDetails {
+                    source: FavoriteSource::Local,
+                    date: None,
+                    title: "海/边".into(),
+                    description: String::new(),
+                    source_url: None,
+                },
+            )
+            .unwrap();
+        let settings: Settings = serde_json::from_value(serde_json::json!({
+            "saveDirectory": directory,
+            "saveWithoutPrompt": false,
+        }))
+        .unwrap();
+        let destination = export_favorite_image(&favorite, &settings).unwrap();
+        assert_eq!(destination.parent(), Some(directory.as_path()));
+        assert_eq!(
+            destination.file_name().unwrap(),
+            format!("海边-{}.png", &favorite.id[..8]).as_str()
+        );
+        assert_eq!(fs::read(&destination).unwrap(), *bytes.get_ref());
+        assert_eq!(fs::read(&favorite.image_path).unwrap(), *bytes.get_ref());
+        assert!(favorite.thumbnail_path.is_file());
+        assert_eq!(store.list().unwrap().len(), 1);
+        assert_eq!(store.images_directory(), root.join("favorites/images"));
+        fs::remove_dir_all(root).unwrap();
+    }
 }

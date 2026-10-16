@@ -712,7 +712,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   width: min(420px, 100%);
   height: 100%;
   overflow-y: auto;
-  padding: 28px;
+  padding: 26px;
   border: 1px solid var(--border);
   border-radius: 22px;
   color: var(--text-primary);
@@ -726,11 +726,11 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .settings-panel::-webkit-scrollbar-track { background: transparent; }
 .settings-panel::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--text-muted); }
 .settings-panel::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
-.settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.settings-heading .eyebrow { color: var(--text-muted); }
-.settings-heading h2 { margin: 0; font-size: 24px; }
-.setting-list { display: grid; gap: 2px; margin-top: 28px; }
-.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--border-soft); }
+.settings-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.settings-heading .eyebrow { margin-bottom: 7px; color: var(--text-muted); }
+.settings-heading h2 { margin: 0; font-size: 24px; line-height: 1.25; }
+.setting-list { display: grid; gap: 2px; margin-top: 24px; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 17px 0; border-bottom: 1px solid var(--border-soft); }
 .setting-row span { display: grid; gap: 5px; }
 .setting-row strong { font-size: 14px; }
 .setting-row small { color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
@@ -813,7 +813,10 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   font-size: 12px;
 }
 .settings-links button:hover { color: var(--text-primary); background: var(--surface-soft-hover); }
-.settings-note { margin-top: 24px; color: var(--text-muted); font-size: 12px; line-height: 1.55; }
+
+@media (max-height: 600px) {
+  .setting-row { padding-block: 14px; }
+}
 
 .spin { animation: spin 1s linear infinite; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, FolderPlus, Heart, ImageOff, ImagePlus, LoaderCircle, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FolderOpen, FolderPlus, Heart, ImageOff, ImagePlus, LoaderCircle, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { favoriteImageUrl, favoritePagination, parseFavoritePageInput, type Favorite } from "../lib/favorites";
 import { parseTitle, type Settings } from "../lib/wallpaper";
@@ -17,11 +17,12 @@ interface Props {
   onSelect: (favorite: Favorite, card: HTMLButtonElement) => void;
   onRemove: (favorite: Favorite) => void;
   onImport: (folder: boolean) => void;
+  onOpenDirectory: () => void;
   onSettings: (patch: Partial<Settings>) => void;
   onAdvance: () => void;
 }
 
-export function FavoritesGallery({ favorites, settings, loading, busy, settingsBusy, feedback, error, selectedId, pendingId, onSelect, onRemove, onImport, onSettings, onAdvance }: Props) {
+export function FavoritesGallery({ favorites, settings, loading, busy, settingsBusy, feedback, error, selectedId, pendingId, onSelect, onRemove, onImport, onOpenDirectory, onSettings, onAdvance }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const [broken, setBroken] = useState<Set<string>>(() => new Set());
   const [requestedPage, setRequestedPage] = useState(1);
@@ -66,6 +67,9 @@ export function FavoritesGallery({ favorites, settings, loading, busy, settingsB
         </div>
         <div className="favorites-header-actions">
           <WallpaperAutomation variant="header" settings={settings} favoriteCount={favorites.length} busy={settingsBusy || busy} onChange={onSettings} onAdvance={onAdvance} />
+          <button type="button" className="month-gallery-nav" aria-label="打开收藏文件夹" title="打开收藏文件夹" disabled={busy} onClick={onOpenDirectory}>
+            <FolderOpen size={16} />
+          </button>
           <div ref={importArea} className="favorites-import">
             <button type="button" className="settings-action" disabled={busy} aria-expanded={importOpen} onClick={() => setImportOpen(!importOpen)}>
               {busy ? <LoaderCircle size={16} className="spin" /> : <ImagePlus size={16} />} {busy ? "处理中…" : "导入"}<ChevronDown size={14} />
@@ -103,7 +107,7 @@ export function FavoritesGallery({ favorites, settings, loading, busy, settingsB
           <div className="month-gallery-empty favorites-empty">
             <Heart size={32} /><h3>把喜欢的风景留在这里</h3>
             <p>在预览图上点心形收藏，或导入本地图片。</p>
-            <small>导入的图片会复制保存。</small>
+            <small>导入的图片会复制到收藏库。</small>
           </div>
         )}
       </div>

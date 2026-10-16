@@ -2313,7 +2313,7 @@ dependencies = [
 
 [[package]]
 name = "my-bing-wallpaper"
-version = "1.2.3"
+version = "1.2.4"
 dependencies = [
  "chrono",
  "dirs 6.0.0",
