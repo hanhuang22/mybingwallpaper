@@ -1104,107 +1104,113 @@ function App() {
         <div className="settings-backdrop" role="presentation" onMouseDown={closeSettings}>
           <aside className="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="settings-heading">
-              <div>
-                <p className="eyebrow">偏好设置</p>
-                <h2 id="settings-title">让壁纸自动焕新</h2>
-              </div>
+              <h2 id="settings-title">设置</h2>
               <button className="icon-button" type="button" aria-label="关闭设置" onClick={closeSettings}><X size={20} /></button>
             </div>
             <div className="setting-list">
-              <div className="setting-row automation-setting-row">
-                <WallpaperAutomation variant="settings" settings={settings} favoriteCount={favorites.length} busy={settingsBusy || favoritesLoading} onChange={(patch) => void updateSettings(patch)} />
-              </div>
-              <label className="setting-row">
-                <span><strong>登录后自动启动</strong><small>静默启动并驻留系统托盘</small></span>
-                <input type="checkbox" role="switch" checked={settings.autoStart} disabled={!isTauri()} onChange={(event) => void updateSettings({ autoStart: event.target.checked })} />
-              </label>
-              {platform === "windows" && (
-                <>
-                  <label className="setting-row">
-                    <span><strong>同时更新锁屏</strong><small>Windows 实验功能，可能受系统策略限制</small></span>
-                    <input type="checkbox" role="switch" checked={settings.lockScreen} onChange={(event) => void updateSettings({ lockScreen: event.target.checked })} />
-                  </label>
+              <section className="settings-group" aria-labelledby="wallpaper-settings-title">
+                <h3 className="settings-group-title" id="wallpaper-settings-title">壁纸</h3>
+                <div className="setting-row automation-setting-row">
+                  <WallpaperAutomation variant="settings" settings={settings} favoriteCount={favorites.length} busy={settingsBusy || favoritesLoading} onChange={(patch) => void updateSettings(patch)} />
+                </div>
+                {platform === "windows" && (
                   <div className="setting-row setting-action-row">
-                    <span><strong>Windows 锁屏背景</strong><small>选择“图片”后，才会显示应用设置的锁屏壁纸</small></span>
-                    <button className="settings-action" type="button" onClick={() => void openLockScreenSettings()}>
-                      <ExternalLink size={16} />打开设置
+                    <label className="setting-label" htmlFor="lock-screen-setting">
+                      <strong>同时设置锁屏</strong>
+                      <small id="lock-screen-description">锁屏选择“图片”时生效</small>
+                    </label>
+                    <div className="setting-actions">
+                      <button className="settings-action settings-action-quiet" type="button" onClick={() => void openLockScreenSettings()}>
+                        <ExternalLink size={16} />打开设置
+                      </button>
+                      <input id="lock-screen-setting" type="checkbox" role="switch" aria-describedby="lock-screen-description" checked={settings.lockScreen} onChange={(event) => void updateSettings({ lockScreen: event.target.checked })} />
+                    </div>
+                  </div>
+                )}
+                <div className="setting-row setting-action-row">
+                  <span className="setting-text">
+                    <strong>原图保存位置</strong>
+                    <small className="setting-path" title={saveDirectory}>{isTauri() ? (saveDirectory ? compactDirectory(saveDirectory) : "正在读取保存位置…") : "仅桌面应用可设置"}</small>
+                    {saveDirectoryError && <em className="setting-error" role="alert">{saveDirectoryError}</em>}
+                  </span>
+                  <div className="setting-actions">
+                    <button className="settings-action" type="button" title="打开原图保存目录" disabled={!isTauri() || choosingSaveDirectory} onClick={() => void openSaveDirectory()}>
+                      <FolderOpen size={16} />打开
+                    </button>
+                    <button className="settings-action" type="button" title="更改原图保存位置" disabled={!isTauri() || choosingSaveDirectory} onClick={() => void chooseSaveDirectory()}>
+                      {choosingSaveDirectory ? <LoaderCircle className="spin" size={16} /> : <Folder size={16} />}更改
                     </button>
                   </div>
-                </>
-              )}
-              <div className="setting-row theme-setting-row">
-                <span><strong>外观</strong></span>
-                <div className="theme-options" role="group" aria-label="外观主题">
-                  <button className={settings.theme === "system" ? "selected" : ""} type="button" title="跟随系统" onClick={() => void updateSettings({ theme: "system" })}>
-                    <MonitorDown size={15} /><span>系统</span>
-                  </button>
-                  <button className={settings.theme === "light" ? "selected" : ""} type="button" title="浅色" onClick={() => void updateSettings({ theme: "light" })}>
-                    <Sun size={15} /><span>浅色</span>
-                  </button>
-                  <button className={settings.theme === "dark" ? "selected" : ""} type="button" title="深色" onClick={() => void updateSettings({ theme: "dark" })}>
-                    <Moon size={15} /><span>深色</span>
-                  </button>
                 </div>
-              </div>
-              <div className="setting-row setting-action-row">
-                <span className="setting-text">
-                  <strong>原图保存位置</strong>
-                  <small className="setting-path" title={saveDirectory}>{isTauri() ? (saveDirectory ? compactDirectory(saveDirectory) : "正在读取保存位置…") : "仅桌面应用可设置"}</small>
-                  {saveDirectoryError && <em className="setting-error" role="alert">{saveDirectoryError}</em>}
-                </span>
-                <div className="setting-actions">
-                  <button className="settings-action" type="button" title="打开原图保存目录" disabled={!isTauri() || choosingSaveDirectory} onClick={() => void openSaveDirectory()}>
-                    <FolderOpen size={16} />打开
-                  </button>
-                  <button className="settings-action" type="button" title="更改原图保存位置" disabled={!isTauri() || choosingSaveDirectory} onClick={() => void chooseSaveDirectory()}>
-                    {choosingSaveDirectory ? <LoaderCircle className="spin" size={16} /> : <Folder size={16} />}更改
-                  </button>
+              </section>
+              <section className="settings-group" aria-labelledby="general-settings-title">
+                <h3 className="settings-group-title" id="general-settings-title">通用</h3>
+                <div className="setting-row theme-setting-row">
+                  <span><strong>外观</strong></span>
+                  <div className="theme-options" role="group" aria-label="外观主题">
+                    <button className={settings.theme === "system" ? "selected" : ""} type="button" title="跟随系统" onClick={() => void updateSettings({ theme: "system" })}>
+                      <MonitorDown size={15} /><span>系统</span>
+                    </button>
+                    <button className={settings.theme === "light" ? "selected" : ""} type="button" title="浅色" onClick={() => void updateSettings({ theme: "light" })}>
+                      <Sun size={15} /><span>浅色</span>
+                    </button>
+                    <button className={settings.theme === "dark" ? "selected" : ""} type="button" title="深色" onClick={() => void updateSettings({ theme: "dark" })}>
+                      <Moon size={15} /><span>深色</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="setting-row setting-action-row">
-                <span>
-                  <strong>软件更新</strong>
-                  <small>
-                    当前版本 v{appVersion}
-                    {updateInfo?.updateAvailable && ` · 最新 v${updateInfo.latestVersion}`}
-                    {downloadingUpdate && ` · 下载中${updateProgress === null ? "…" : ` ${updateProgress}%`}`}
-                  </small>
-                  {updateFeedback && (
-                    <em className={`update-inline-feedback ${updateFeedback.kind}`} role={updateFeedback.kind === "error" ? "alert" : "status"}>
-                      {updateFeedback.kind === "success" ? <CheckCircle2 size={14} /> : updateFeedback.kind === "error" ? <Info size={14} /> : <LoaderCircle className={checkingUpdate || downloadingUpdate ? "spin" : undefined} size={14} />}
-                      {updateFeedback.text}
-                    </em>
+                <label className="setting-row">
+                  <span><strong>登录后自动启动</strong><small>静默启动，驻留系统托盘</small></span>
+                  <input type="checkbox" role="switch" checked={settings.autoStart} disabled={!isTauri()} onChange={(event) => void updateSettings({ autoStart: event.target.checked })} />
+                </label>
+              </section>
+              <section className="settings-group" aria-labelledby="update-settings-title">
+                <h3 className="settings-group-title" id="update-settings-title">软件更新</h3>
+                <div className="setting-row setting-action-row">
+                  <span>
+                    <strong>当前版本</strong>
+                    <small>
+                      v{appVersion}
+                      {updateInfo?.updateAvailable && ` · 最新 v${updateInfo.latestVersion}`}
+                      {downloadingUpdate && ` · 下载中${updateProgress === null ? "…" : ` ${updateProgress}%`}`}
+                    </small>
+                    {updateFeedback && (
+                      <em className={`update-inline-feedback ${updateFeedback.kind}`} role={updateFeedback.kind === "error" ? "alert" : "status"}>
+                        {updateFeedback.kind === "success" ? <CheckCircle2 size={14} /> : updateFeedback.kind === "error" ? <Info size={14} /> : <LoaderCircle className={checkingUpdate || downloadingUpdate ? "spin" : undefined} size={14} />}
+                        {updateFeedback.text}
+                      </em>
+                    )}
+                  </span>
+                  {updateInfo?.readyToRestart ? (
+                    <button className="settings-action accent" type="button" onClick={() => void installSoftwareUpdate()}>
+                      <RefreshCw size={16} />重启并更新
+                    </button>
+                  ) : updateInfo?.updateAvailable ? (
+                    <button className="settings-action accent" type="button" disabled={downloadingUpdate} onClick={() => void downloadSoftwareUpdate()}>
+                      {downloadingUpdate ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}
+                      {downloadingUpdate ? "下载中" : "下载更新"}
+                    </button>
+                  ) : (
+                    <button className="settings-action" type="button" disabled={checkingUpdate || Boolean(updateInfo)} onClick={() => void checkForUpdates()}>
+                      {checkingUpdate ? <LoaderCircle className="spin" size={16} /> : updateInfo ? <CheckCircle2 size={16} /> : <RefreshCw size={16} />}
+                      {checkingUpdate ? "检查中" : updateInfo ? "已是最新" : "检查更新"}
+                    </button>
                   )}
-                </span>
-                {updateInfo?.readyToRestart ? (
-                  <button className="settings-action accent" type="button" onClick={() => void installSoftwareUpdate()}>
-                    <RefreshCw size={16} />重启并更新
-                  </button>
-                ) : updateInfo?.updateAvailable ? (
-                  <button className="settings-action accent" type="button" disabled={downloadingUpdate} onClick={() => void downloadSoftwareUpdate()}>
-                    {downloadingUpdate ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}
-                    {downloadingUpdate ? "下载中" : "下载更新"}
-                  </button>
-                ) : (
-                  <button className="settings-action" type="button" disabled={checkingUpdate || Boolean(updateInfo)} onClick={() => void checkForUpdates()}>
-                    {checkingUpdate ? <LoaderCircle className="spin" size={16} /> : updateInfo ? <CheckCircle2 size={16} /> : <RefreshCw size={16} />}
-                    {checkingUpdate ? "检查中" : updateInfo ? "已是最新" : "检查更新"}
-                  </button>
-                )}
-              </div>
-              <label className="setting-row">
-                <span><strong>自动下载软件更新</strong><small>发现新版本后在后台下载，安装前仍会询问</small></span>
-                <input
-                  type="checkbox"
-                  role="switch"
-                  checked={settings.autoDownloadUpdates}
-                  onChange={(event) => {
-                    const enabled = event.target.checked;
-                    void updateSettings({ autoDownloadUpdates: enabled });
-                    if (enabled) void downloadSoftwareUpdate();
-                  }}
-                />
-              </label>
+                </div>
+                <label className="setting-row">
+                  <span><strong>自动下载更新</strong><small>后台下载，安装前询问</small></span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={settings.autoDownloadUpdates}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      void updateSettings({ autoDownloadUpdates: enabled });
+                      if (enabled) void downloadSoftwareUpdate();
+                    }}
+                  />
+                </label>
+              </section>
             </div>
             <div className="settings-links" aria-label="项目链接">
               <button type="button" onClick={() => void openExternal(OFFICIAL_SITE)}><Globe2 size={15} />官方网站<ExternalLink size={13} /></button>
