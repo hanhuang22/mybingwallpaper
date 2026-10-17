@@ -7,9 +7,9 @@
 
 [项目网站](https://hanhuang22.github.io/mybingwallpaper/) · [GitHub 下载](https://github.com/hanhuang22/mybingwallpaper/releases) · [Gitee 国内下载](https://gitee.com/Hyman25/mybingwallpaper/releases)
 
-当前稳定版为 **v1.2.4**。浏览每日与历史壁纸，收藏喜欢的照片，也可以导入自己的图片，让桌面按你的选择自动换新。
+当前稳定版为 **v1.2.5**。浏览每日与历史壁纸，收藏喜欢的照片，也可以导入自己的图片，让桌面按你的选择自动换新。
 
-本版简化原图保存与设置界面，增加收藏图片文件夹入口，明确区分收藏库和原图保存位置，并保留已有的保存目录设置。以下为 macOS 实机截图；Windows 版功能相同，窗口控件保留平台习惯。
+本版改进软件更新：GitHub 与 Gitee 并行检查版本，下载失败或长时间无进展时自动切换来源，保留签名校验并防止混用不同版本的更新包。以下为 macOS 实机截图；Windows 版功能相同，窗口控件保留平台习惯。
 
 ## 界面预览
 
