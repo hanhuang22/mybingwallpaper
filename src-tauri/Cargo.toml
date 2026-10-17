@@ -30,6 +30,9 @@ tokio = { version = "1", features = ["macros", "sync", "time"] }
 url = "2"
 tauri-plugin-dialog = "2"
 
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util", "rt"] }
+
 [target.'cfg(target_os = "windows")'.dependencies]
 tauri-plugin-single-instance = "2"
 windows = { version = "0.61", features = ["Storage", "Storage_Streams", "System_UserProfile", "Win32_Foundation", "Win32_Graphics_Dwm"] }

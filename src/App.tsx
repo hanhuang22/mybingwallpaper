@@ -35,6 +35,7 @@ import { WallpaperAutomation } from "./components/WallpaperAutomation";
 import { favoriteWallpaper, matchingFavorite, type Favorite, type FavoriteImportResult } from "./lib/favorites";
 import { WindowsTitleBar } from "./components/WindowsTitleBar";
 import { preloadWallpaperImage } from "./lib/image";
+import { softwareUpdatePercent, type SoftwareUpdateProgress } from "./lib/softwareUpdate";
 import {
   addDays,
   addMonths,
@@ -498,10 +499,18 @@ function App() {
       listen<string>("display-wallpaper-error", (event) => {
         setError(`外接显示器壁纸同步失败：${event.payload}`);
       }),
-      listen<{ downloaded: number; total?: number }>("software-update-progress", (event) => {
-        if (event.payload.total) {
-          setUpdateProgress(Math.min(100, Math.round((event.payload.downloaded / event.payload.total) * 100)));
+      listen<SoftwareUpdateProgress>("software-update-progress", (event) => {
+        cancelUpdateStatusReset();
+        setDownloadingUpdate(true);
+        setUpdateProgress(softwareUpdatePercent(event.payload));
+        if (event.payload.downloaded === 0) {
+          setUpdateFeedback({ kind: "info", text: `正在从 ${event.payload.source} 下载并校验更新包…` });
         }
+      }),
+      listen<string>("software-update-failed", (event) => {
+        setDownloadingUpdate(false);
+        setUpdateProgress(null);
+        setUpdateFeedback({ kind: "error", text: `下载更新失败：${event.payload}` });
       }),
       listen<string>("software-update-ready", (event) => {
         cancelUpdateStatusReset();

@@ -1,6 +1,7 @@
 mod favorite_commands;
 mod favorites;
 mod platform;
+mod software_updates;
 
 use favorites::{FavoriteStore, RotationState, WallpaperMode};
 
@@ -25,7 +26,7 @@ use tauri::{
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_updater::{Update, UpdaterExt};
+use tauri_plugin_updater::Update;
 use url::Url;
 
 const ARCHIVE_BASE: &str = "https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month";
@@ -203,6 +204,7 @@ struct SoftwareUpdateStatus {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SoftwareUpdateProgress {
+    source: &'static str,
     downloaded: u64,
     total: Option<u64>,
 }
@@ -285,29 +287,23 @@ async fn fallback_release_status(
     let mut failures = Vec::new();
     let mut latest_release: Option<Version> = None;
 
-    for (source, endpoint) in sources {
-        let response = match client.get(endpoint).send().await {
-            Ok(response) => response,
-            Err(error) => {
-                failures.push(format!("{source}: {error}"));
-                continue;
-            }
-        };
-        let response = match response.error_for_status() {
-            Ok(response) => response,
-            Err(error) => {
-                failures.push(format!("{source}: {error}"));
-                continue;
-            }
-        };
-        let release = match response.json::<RemoteRelease>().await {
-            Ok(release) => release,
-            Err(error) => {
-                failures.push(format!("{source}: {error}"));
-                continue;
-            }
-        };
-        let version = match parse_version(&release.tag_name) {
+    let fetch = |endpoint| async move {
+        let release = client
+            .get(endpoint)
+            .timeout(software_updates::CHECK_TIMEOUT)
+            .send()
+            .await
+            .map_err(|error| error.to_string())?
+            .error_for_status()
+            .map_err(|error| error.to_string())?
+            .json::<RemoteRelease>()
+            .await
+            .map_err(|error| error.to_string())?;
+        parse_version(&release.tag_name)
+    };
+    let (gitee, github) = tokio::join!(fetch(GITEE_LATEST_RELEASE), fetch(GITHUB_LATEST_RELEASE));
+    for ((source, _), result) in sources.into_iter().zip([gitee, github]) {
+        let version = match result {
             Ok(version) => version,
             Err(error) => {
                 failures.push(format!("{source}: {error}"));
@@ -332,7 +328,7 @@ async fn fallback_release_status(
             });
         }
         return Err(format!(
-            "发现新版本 v{latest}，但签名更新清单尚未就绪，请稍后重试或使用国内下载"
+            "发现新版本 v{latest}，但签名更新清单尚未就绪，请稍后重试或手动下载安装包"
         ));
     }
 
@@ -1004,12 +1000,7 @@ async fn prepare_software_update_inner<R: Runtime>(
         });
     }
 
-    let updater = app
-        .updater_builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|error| format!("无法初始化更新服务：{error}"))?;
-    let update = match updater.check().await {
+    let updates = match software_updates::check(&app).await {
         Ok(Some(update)) => update,
         Ok(None) => {
             return Ok(SoftwareUpdateStatus {
@@ -1024,7 +1015,7 @@ async fn prepare_software_update_inner<R: Runtime>(
         }
     };
 
-    let latest_version = update.version.clone();
+    let latest_version = updates.version.clone();
     if !download {
         return Ok(SoftwareUpdateStatus {
             current_version,
@@ -1034,21 +1025,13 @@ async fn prepare_software_update_inner<R: Runtime>(
         });
     }
 
-    let progress_app = app.clone();
-    let mut downloaded = 0_u64;
-    let bytes = update
-        .download(
-            move |chunk, total| {
-                downloaded = downloaded.saturating_add(chunk as u64);
-                let _ = progress_app.emit(
-                    "software-update-progress",
-                    SoftwareUpdateProgress { downloaded, total },
-                );
-            },
-            || {},
-        )
-        .await
-        .map_err(|error| format!("更新下载或签名校验失败：{error}"))?;
+    let (update, bytes) = match software_updates::download(&app, updates).await {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = app.emit("software-update-failed", &error);
+            return Err(error);
+        }
+    };
 
     *pending_update.lock().await = Some(PendingSoftwareUpdate {
         update,
