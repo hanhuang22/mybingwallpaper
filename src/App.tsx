@@ -499,6 +499,9 @@ function App() {
       listen<string>("display-wallpaper-error", (event) => {
         setError(`外接显示器壁纸同步失败：${event.payload}`);
       }),
+      listen<string>("space-wallpaper-error", (event) => {
+        setError(`桌面空间壁纸同步失败：${event.payload}`);
+      }),
       listen<SoftwareUpdateProgress>("software-update-progress", (event) => {
         cancelUpdateStatusReset();
         setDownloadingUpdate(true);

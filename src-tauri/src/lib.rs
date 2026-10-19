@@ -803,6 +803,7 @@ fn wallpaper_cache_path(cache: &Path, date: &str, image_url: &str) -> PathBuf {
     cache.join(format!("{date}-{fingerprint:016x}.jpg"))
 }
 
+#[cfg(not(target_os = "macos"))]
 fn latest_cached_wallpaper(cache: &Path) -> Option<PathBuf> {
     fs::read_dir(cache)
         .ok()?
@@ -858,17 +859,43 @@ fn postpone_favorite_rotation(state: &AppState, favorite_id: Option<&str>) -> Re
 }
 
 #[cfg(target_os = "macos")]
-fn reapply_active_wallpaper<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
-    let path = app
-        .state::<AppState>()
-        .active_wallpaper
-        .lock()
-        .map_err(|_| "壁纸状态不可用".to_string())?
-        .clone();
-    let Some(path) = path.filter(|path| path.is_file()) else {
-        return Ok(());
-    };
-    platform::set_desktop_wallpaper(&path)
+async fn reapply_active_wallpaper<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
+    // Share the lock used by manual, daily and favorite wallpaper changes. Read the
+    // path AFTER acquiring it so a queued sync can never restore an older image.
+    let update_lock = app.state::<AppState>().auto_update_lock.clone();
+    let _guard = update_lock.lock_owned().await;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = handle.state::<AppState>();
+        if state.quitting.load(std::sync::atomic::Ordering::SeqCst) {
+            return Ok(());
+        }
+        let path = state
+            .active_wallpaper
+            .lock()
+            .map_err(|_| "壁纸状态不可用".to_string())?
+            .clone();
+        let Some(path) = path.filter(|path| path.is_file()) else {
+            return Ok(());
+        };
+        platform::sync_desktop_wallpaper(&path)
+    })
+    .await
+    .map_err(|error| format!("壁纸同步任务失败：{error}"))?
+}
+
+#[cfg(target_os = "macos")]
+fn watch_space_changes<R: Runtime>(app: tauri::AppHandle<R>) {
+    // Register on the setup/main thread and keep native objects there.
+    let changed = platform::observe_space_changes();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            platform::wait_for_settled_space_change(&changed).await;
+            if let Err(error) = reapply_active_wallpaper(&app).await {
+                let _ = app.emit("space-wallpaper-error", error);
+            }
+        }
+    });
 }
 
 #[cfg(target_os = "macos")]
@@ -894,7 +921,7 @@ fn watch_display_reconnections<R: Runtime>(app: tauri::AppHandle<R>) {
             // Give macOS time to finish creating the desktop space for a newly
             // connected display before applying the current wallpaper to it.
             tokio::time::sleep(Duration::from_secs(2)).await;
-            if let Err(error) = reapply_active_wallpaper(&app) {
+            if let Err(error) = reapply_active_wallpaper(&app).await {
                 let _ = app.emit("display-wallpaper-error", error);
             }
         }
@@ -1469,6 +1496,13 @@ pub fn run() {
                 .user_agent("MyBingWallpaper/0.3")
                 .build()
                 .map_err(|error| Box::<dyn std::error::Error>::from(error))?;
+            let active_wallpaper = read_rotation_state(&rotation_state_path)
+                .active_path
+                .filter(|path| path.is_file());
+            // Downloading/favoriting an image does not mean it was set as wallpaper.
+            // On macOS only restore an explicitly applied path for background sync.
+            #[cfg(not(target_os = "macos"))]
+            let active_wallpaper = active_wallpaper.or_else(|| latest_cached_wallpaper(&cache_dir));
             app.manage(AppState {
                 client,
                 config_path: config_dir.join("settings.json"),
@@ -1476,12 +1510,7 @@ pub fn run() {
                 favorites: FavoriteStore::new(app.path().app_data_dir()?.join("favorites"))?,
                 favorites_lock: Arc::new(tokio::sync::Mutex::new(())),
                 rotation_state_path: rotation_state_path.clone(),
-                active_wallpaper: Arc::new(Mutex::new(
-                    read_rotation_state(&rotation_state_path)
-                        .active_path
-                        .filter(|path| path.is_file())
-                        .or_else(|| latest_cached_wallpaper(&cache_dir)),
-                )),
+                active_wallpaper: Arc::new(Mutex::new(active_wallpaper)),
                 wallpaper_cache: cache_dir,
                 archive_cache: Arc::new(MonthArchiveCache::new(archive_cache_dir)),
                 last_handled_wallpaper_date: Arc::new(Mutex::new(read_daily_wallpaper_state(
@@ -1531,7 +1560,10 @@ pub fn run() {
 
             let handle = app.handle().clone();
             #[cfg(target_os = "macos")]
-            watch_display_reconnections(handle.clone());
+            {
+                watch_space_changes(handle.clone());
+                watch_display_reconnections(handle.clone());
+            }
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(Duration::from_secs(15)).await;
                 loop {
