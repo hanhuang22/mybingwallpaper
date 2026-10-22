@@ -57,3 +57,14 @@ test("missing required signature fails the release manifest", async () => {
     urlForAsset: (name) => `https://example.test/${name}`,
   })).rejects.toThrow("Missing updater asset or signature for windows-x86_64");
 });
+
+test("branch names cannot generate an updater manifest", async () => {
+  await expect(buildUpdaterManifest({ assetDir: "/unused", tag: "main", urlForAsset: (name) => name })).rejects.toThrow("vX.Y.Z");
+});
+
+test("blank signatures fail the release manifest", async () => {
+  const tag = "v1.2.7";
+  const assetDir = await createAssets(tag, currentPlatforms);
+  await writeFile(join(assetDir, `${updaterPlatforms(tag)["windows-x86_64"]}.sig`), " \n");
+  await expect(buildUpdaterManifest({ assetDir, tag, urlForAsset: (name) => name })).rejects.toThrow("Empty updater signature");
+});

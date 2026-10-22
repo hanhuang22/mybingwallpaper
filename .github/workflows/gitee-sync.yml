@@ -12,6 +12,10 @@ jobs:
   sync-to-gitee:
     name: Sync to Gitee
     runs-on: ubuntu-latest
+    concurrency:
+      group: gitee-release-publish
+      cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v2
         with:

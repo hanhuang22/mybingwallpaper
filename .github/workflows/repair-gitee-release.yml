@@ -14,6 +14,10 @@ permissions:
 jobs:
   publish-gitee:
     runs-on: ubuntu-latest
+    concurrency:
+      group: gitee-release-publish
+      cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v7
         with:
@@ -25,6 +29,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
+          node --input-type=module -e 'import { releaseVersion } from "./.github/scripts/release-safety.mjs"; releaseVersion(process.env.RELEASE_TAG);'
           git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}"
           echo "RELEASE_COMMIT=$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")" >> "$GITHUB_ENV"
       - name: Download existing GitHub release assets

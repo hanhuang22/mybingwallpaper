@@ -7,9 +7,9 @@
 
 [项目网站](https://hanhuang22.github.io/mybingwallpaper/) · [GitHub 下载](https://github.com/hanhuang22/mybingwallpaper/releases) · [Gitee 国内下载](https://gitee.com/Hyman25/mybingwallpaper/releases)
 
-当前稳定版为 **v1.2.7**。浏览每日与历史壁纸，收藏喜欢的照片，也可以导入自己的图片，让桌面按你的选择自动换新。
+当前稳定版为 **v1.2.8**。浏览每日与历史壁纸，收藏喜欢的照片，也可以导入自己的图片，让桌面按你的选择自动换新。
 
-本版修复 macOS 切换桌面空间后壁纸不同步的问题：后台运行期间自动同步最近由本应用设置的壁纸，复用本地图片，不影响每日更新或收藏轮播。Windows 壁纸逻辑不变。以下为 macOS 实机截图；Windows 版窗口控件保留平台习惯，额外提供锁屏设置。
+本版集中修复缓存、快速切图与软件更新中的边界问题：跨月档案可继续补全，损坏的图片缓存可自动重建，取消浏览不再被迟到的请求覆盖，安装失败后可重试。同时加固 GitHub / Gitee 发布流程，避免补发旧版回退更新清单。以下为 macOS 实机截图；Windows 版窗口控件保留平台习惯，额外提供锁屏设置。
 
 ## 界面预览
 
@@ -85,7 +85,9 @@ macOS 设置壁纸时会应用到各显示器当前可见的桌面空间；应�
 
 Windows 11 ARM 设备可以通过系统模拟运行 x64 安装包。若此前安装了 Windows ARM64 原生版，切换到 x64 版请手动安装；不自动向 ARM64 原生版推送未经验证的跨架构更新。32 位 Windows 和 Intel Mac 无法运行对应的新版本，仍可使用历史版本。
 
-向 `main` 推送代码时，GitHub Actions 会验证上述两种目标能否构建。全部通过后，如果源码版本号一致且对应的 `v*` 标签尚不存在，工作流会自动创建标签、发布 GitHub Release，并将同一批安装包同步到 Gitee Release；已有标签不会重复发布。`updater` 分支只存放签名更新清单，由发布工作流维护，无需手动合并。也可以手动推送 `v*` 标签触发发布。v0.3.6 是支持应用内自动更新的起始版本，旧版本需要先手动安装一次 v0.3.6 或更高版本。更新包会经过独立签名校验，但这不等同于商业代码签名：Windows 仍可能显示 SmartScreen 提示，macOS 安装包也尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
+向 `main` 推送代码时，GitHub Actions 会验证上述两种目标能否构建。全部通过且源码版本号一致后，工作流会创建或复用指向同一提交的 `vX.Y.Z` 标签，发布 GitHub Release，并同步到 Gitee Release。已有运行中或成功的 Release 不会重复触发；创建标签后启动 Release 失败，可以重跑自动发布任务继续。手动 Release 也必须选择与源码版本一致的版本标签，不能从 `main` 分支直接发布。`updater` 分支只存放签名更新清单，由发布工作流维护，无需手动合并；补发旧版不会回退最新更新清单，复用 Gitee 附件前会校验 SHA-256 内容。
+
+v0.3.6 是支持应用内自动更新的起始版本，旧版本需要先手动安装一次 v0.3.6 或更高版本。更新包会经过独立签名校验，但这不等同于商业代码签名：Windows 仍可能显示 SmartScreen 提示，macOS 安装包也尚未经过 Apple 公证；首次启动如出现开发者验证提示，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”选择“仍要打开”。
 
 ## 技术结构
 
@@ -156,12 +158,12 @@ macOS 会生成 `.app`、带有拖动安装界面的 DMG，以及供应用内更
 
 生成安装包前需在环境变量中提供 Tauri 更新签名私钥与密码；只验证代码能否编译时可使用 `npm run tauri build -- --no-bundle`。更新公钥已经随客户端发布后不要随意更换，否则旧版本将无法验证后续更新。
 
-GitHub Actions 只构建 Windows x64 和 macOS Apple Silicon。推送 `v*` 标签时，发布工作流会同时生成更新包签名和 `latest.json`，发布到 GitHub 后再通过加密的 Gitee API Token 同步到 Gitee，并维护国内可访问的更新清单。发布所需的 `GITEE_API_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 只存在于 GitHub Actions Secrets，不会进入源码或安装包；客户端仅包含用于验证签名的公钥。
+GitHub Actions 只构建 Windows x64 和 macOS Apple Silicon。推送与源码版本一致的 `vX.Y.Z` 标签时，发布工作流会同时生成更新包签名和 `latest.json`，发布到 GitHub 后再通过加密的 Gitee API Token 同步到 Gitee，并维护国内可访问的更新清单。Gitee 发布、补发和仓库镜像任务共用排队互斥，避免相互覆盖。发布所需的 `GITEE_API_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 只存在于 GitHub Actions Secrets，不会进入源码或安装包；客户端仅包含用于验证签名的公钥。
 
 ## 数据源
 
 - 月度元数据：`https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month/YYYYMM.json`
-- 桌面端把月度 JSON 缓存在应用缓存目录的 `archive-json/YYYYMM.json`，与图片缓存 `wallpapers/` 分开。单日浏览、月览和每日自动换壁纸共用这份缓存：历史月份直接复用；当月尚无今日壁纸或说明不完整时，每 5 分钟才重新请求一次。界面中的“重试”可强制重新请求；当天壁纸成功应用后，后台不再重复检查，次日再尝试。
+- 桌面端把月度 JSON 缓存在应用缓存目录的 `archive-json/YYYYMM.json`，与图片缓存 `wallpapers/` 分开。单日浏览、月览和每日自动换壁纸共用这份缓存：封存的历史档案直接复用；当月尚无今日壁纸或说明不完整时，每 5 分钟才重新请求一次。跨月后未完整的上月档案会补拉，次月首日仍保留短 TTL；记录完整，或过发布宽限期后成功获取的历史档案才封存。离线回退不会误标为已封存。月览的内存缓存也会过期，但历史档案仍由 Rust 磁盘缓存复用，不因此重复访问 OSS。界面中的“重试”可强制重新请求；当天壁纸成功应用后，后台不再重复检查，次日再尝试。
 - 2010/01/01—2018/12/30 的历史图片数据来自 [bing.ee123.net](https://bing.ee123.net/)。
 - 之后的数据来自必应图片源；有 4K 原图时优先使用 4K 地址。
 

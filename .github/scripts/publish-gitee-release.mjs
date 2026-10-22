@@ -3,6 +3,7 @@ import { readdir, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { buildUpdaterManifest } from "./updater-manifest.mjs";
+import { attachmentMatches, manifestFromContents, releaseVersion, shouldPublishManifest } from "./release-safety.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -16,6 +17,7 @@ const token = required("GITEE_API_TOKEN");
 const owner = required("GITEE_OWNER");
 const repo = required("GITEE_REPO");
 const tag = required("RELEASE_TAG");
+releaseVersion(tag);
 const commit = required("RELEASE_COMMIT");
 const assetDir = required("ASSET_DIR");
 const apiBase = `https://gitee.com/api/v5/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
@@ -75,15 +77,11 @@ async function uploadAttachment(releaseId, filePath) {
     // Gitee can accept a file and then close the connection before curl receives
     // its response. Reuse that attachment instead of failing or uploading it twice.
     const existing = await giteeRequest(`/releases/${releaseId}/attach_files?per_page=100`);
-    const fileSize = (await stat(filePath)).size;
-    const recovered = existing?.find((attachment) =>
-      attachment.name === fileName &&
-      Number(attachment.size) === fileSize &&
-      attachment.browser_download_url,
-    );
-    if (recovered) {
-      console.log(`Recovered uploaded ${fileName} after a dropped response`);
-      return recovered;
+    for (const attachment of existing ?? []) {
+      if (attachment.name === fileName && await attachmentMatches(attachment, filePath)) {
+        console.log(`Recovered verified ${fileName} after a dropped response`);
+        return attachment;
+      }
     }
     // Do not include the command in logs: it contains the Gitee access token.
     throw new Error(`Gitee attachment upload failed for ${fileName} (curl exit ${error.code ?? "unknown"}): ${String(error.stderr ?? "").trim()}`);
@@ -164,7 +162,7 @@ const downloadUrls = new Map();
 async function publishAsset(asset) {
   const fileName = basename(asset);
   const prior = existingByName.get(fileName);
-  if (prior && Number(prior.size) === (await stat(asset)).size && prior.browser_download_url) {
+  if (prior && await attachmentMatches(prior, asset)) {
     downloadUrls.set(fileName, prior.browser_download_url);
     console.log(`Kept existing ${fileName}`);
     return;
@@ -242,6 +240,10 @@ async function publishUpdaterBranch() {
     });
   }
   const existing = await request("/contents/latest.json?ref=updater", { allowNotFound: true });
+  if (existing && !shouldPublishManifest(manifestFromContents(existing), updaterManifest)) {
+    console.log(`Kept newer GitHub updater manifest; ${tag} only repairs its own release`);
+    return;
+  }
   await request("/contents/latest.json", {
     method: "PUT",
     body: JSON.stringify({
@@ -259,14 +261,18 @@ const currentGiteeManifest = await giteeRequest("/contents/latest.json?ref=updat
 if (!currentGiteeManifest?.sha) {
   throw new Error("Gitee updater branch is missing latest.json or its blob SHA");
 }
-await giteeRequest("/contents/latest.json", {
-  method: "PUT",
-  body: new URLSearchParams({
-    branch: "updater",
-    message: `chore: update signed manifest for ${tag}`,
-    content: Buffer.from(updaterManifestContents).toString("base64"),
-    sha: currentGiteeManifest.sha,
-  }),
-});
-console.log("Published signed manifest to Gitee updater branch");
+if (!shouldPublishManifest(manifestFromContents(currentGiteeManifest), updaterManifest)) {
+  console.log(`Kept newer Gitee updater manifest; ${tag} only repairs its own release`);
+} else {
+  await giteeRequest("/contents/latest.json", {
+    method: "PUT",
+    body: new URLSearchParams({
+      branch: "updater",
+      message: `chore: update signed manifest for ${tag}`,
+      content: Buffer.from(updaterManifestContents).toString("base64"),
+      sha: currentGiteeManifest.sha,
+    }),
+  });
+  console.log("Published signed manifest to Gitee updater branch");
+}
 console.log(`Published ${assets.length} signed assets to Gitee release ${tag}`);

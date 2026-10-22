@@ -1,13 +1,17 @@
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { releaseVersion } from "./release-safety.mjs";
 
-export const updaterPlatforms = (tag) => ({
-  "windows-x86_64": `mybingwallpaper-${tag}-windows-x64-setup.exe`,
-  "windows-i686": `mybingwallpaper-${tag}-windows-x86-setup.exe`,
-  "windows-aarch64": `mybingwallpaper-${tag}-windows-arm64-setup.exe`,
-  "darwin-x86_64": `mybingwallpaper-${tag}-macos-intel.app.tar.gz`,
-  "darwin-aarch64": `mybingwallpaper-${tag}-macos-apple-silicon.app.tar.gz`,
-});
+export const updaterPlatforms = (tag) => {
+  releaseVersion(tag);
+  return {
+    "windows-x86_64": `mybingwallpaper-${tag}-windows-x64-setup.exe`,
+    "windows-i686": `mybingwallpaper-${tag}-windows-x86-setup.exe`,
+    "windows-aarch64": `mybingwallpaper-${tag}-windows-arm64-setup.exe`,
+    "darwin-x86_64": `mybingwallpaper-${tag}-macos-intel.app.tar.gz`,
+    "darwin-aarch64": `mybingwallpaper-${tag}-macos-apple-silicon.app.tar.gz`,
+  };
+};
 
 const legacyPlatforms = new Set(["windows-i686", "windows-aarch64", "darwin-x86_64"]);
 
@@ -35,6 +39,7 @@ export async function buildUpdaterManifest({ assetDir, tag, urlForAsset }) {
       throw new Error(`Missing updater asset or signature for ${platform}: ${fileName}`);
     }
     const signature = (await readFile(signaturePath, "utf8")).trim();
+    if (!signature) throw new Error(`Empty updater signature for ${platform}`);
     platforms[platform] = {
       url: await urlForAsset(fileName),
       signature,
@@ -42,7 +47,7 @@ export async function buildUpdaterManifest({ assetDir, tag, urlForAsset }) {
   }
 
   return {
-    version: tag.replace(/^v/i, ""),
+    version: releaseVersion(tag),
     notes: `mybingwallpaper ${tag}`,
     pub_date: new Date().toISOString(),
     platforms,

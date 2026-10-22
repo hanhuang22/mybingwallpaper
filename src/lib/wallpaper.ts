@@ -121,7 +121,7 @@ export async function fetchWallpaperInBrowser(date: string, forceRefresh = false
 }
 
 export function withTodayFallback(records: Wallpaper[], today: string, live: Wallpaper | null): Wallpaper[] {
-  if (!live || live.date !== today || records.some((record) => record.date === today)) return records;
+  if (!live || live.date !== today || live.favoriteId || live.localImage || records.some((record) => record.date === today)) return records;
   return [...records, live].sort((left, right) => left.date.localeCompare(right.date));
 }
 
@@ -133,7 +133,7 @@ export async function resolveMonthWallpapers(
   fetchToday: () => Promise<Wallpaper>,
 ): Promise<Wallpaper[]> {
   if (month !== today.slice(0, 7) || archived.some((record) => record.date === today)) return archived;
-  const live = shownWallpaper?.date === today
+  const live = shownWallpaper?.date === today && !shownWallpaper.favoriteId && !shownWallpaper.localImage
     ? shownWallpaper
     : await fetchToday().catch(() => null);
   return withTodayFallback(archived, today, live);

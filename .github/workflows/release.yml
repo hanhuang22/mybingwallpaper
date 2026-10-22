@@ -9,8 +9,24 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Validate release tag and application versions
+        run: node .github/scripts/validate-release.mjs
+
   windows:
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +76,7 @@ jobs:
           path: release-assets/*
 
   macos:
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -134,6 +151,10 @@ jobs:
   publish-gitee:
     needs: [windows, macos, publish]
     runs-on: ubuntu-latest
+    concurrency:
+      group: gitee-release-publish
+      cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v7
         with:

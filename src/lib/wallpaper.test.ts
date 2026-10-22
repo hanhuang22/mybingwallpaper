@@ -45,6 +45,18 @@ describe("wallpaper helpers", () => {
     expect(await resolveMonthWallpapers("2026-09", live.date, [], null, fetchToday)).toEqual([]);
   });
 
+  it("never uses a local or favorite preview as the live Bing record", async () => {
+    const today = "2026-10-22";
+    const live = { date: today, title: "Bing 今日", description: "", imageUrl: "https://cn.bing.com/today.jpg" };
+    const local = { ...live, title: "私人照片", imageUrl: "asset://localhost/local.jpg", favoriteId: "local", localImage: true };
+    const fetchToday = vi.fn().mockResolvedValue(live);
+    expect(withTodayFallback([], today, local)).toEqual([]);
+    expect(withTodayFallback([], today, { ...local, favoriteId: undefined })).toEqual([]);
+    expect(withTodayFallback([], today, { ...local, localImage: false })).toEqual([]);
+    expect(await resolveMonthWallpapers("2026-10", today, [], local, fetchToday)).toEqual([live]);
+    expect(fetchToday).toHaveBeenCalledOnce();
+  });
+
   it("converts a UI date to the archive key", () => {
     expect(dateToApiKey("2026-09-20")).toBe("20260920");
   });

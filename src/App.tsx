@@ -73,6 +73,8 @@ interface GalleryZoom {
 
 const OFFICIAL_SITE = "https://hanhuang22.github.io/mybingwallpaper/";
 const GITEE_RELEASES = "https://gitee.com/Hyman25/mybingwallpaper/releases";
+const MINIMUM_DATE = "2010-01-01";
+const GALLERY_CACHE_TTL_MS = 5 * 60_000;
 
 const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 const isUnpublishedToday = (detail: string) =>
@@ -163,10 +165,13 @@ function App() {
   const [appVersion, setAppVersion] = useState("1.2.5");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateCheck | null>(null);
   const [updateFeedback, setUpdateFeedback] = useState<UpdateFeedback | null>(null);
   const wallpaperRequest = useRef(0);
+  const galleryWallpaperRequest = useRef<number | null>(null);
+  const installingUpdateRef = useRef(false);
   const lastAutomaticRefreshDate = useRef<string | null>(null);
   const wallpaperRef = useRef<Wallpaper | null>(null);
   const selectedDateRef = useRef(selectedDate);
@@ -229,6 +234,19 @@ function App() {
 
   const closeGallery = useCallback(() => {
     gallerySelectionId.current += 1;
+    if (galleryWallpaperRequest.current === wallpaperRequest.current) {
+      // Cancel only the picture load owned by this selection. Closing a completed
+      // zoom must not invalidate a newer date request or its successfully shown image.
+      wallpaperRequest.current += 1;
+      setAction(null);
+      setMessage("");
+      const previous = wallpaperRef.current;
+      if (previous && !previous.favoriteId && previous.date !== selectedDateRef.current) {
+        gallerySkipDate.current = previous.date;
+        setSelectedDate(previous.date);
+      }
+    }
+    galleryWallpaperRequest.current = null;
     if (galleryZoomTimer.current !== null) {
       window.clearTimeout(galleryZoomTimer.current);
       galleryZoomTimer.current = null;
@@ -239,7 +257,7 @@ function App() {
     setGalleryOpen(false);
     setFavoritesOpen(false);
     setFavoritesPendingId(null);
-  }, []);
+  }, [setSelectedDate]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -329,7 +347,9 @@ function App() {
     const forceRefresh = galleryForceRefresh.current === galleryMonth;
     galleryForceRefresh.current = null;
     const cached = galleryCache.current.get(galleryMonth);
-    if (!forceRefresh && cached && (galleryMonth < today.slice(0, 7) || Date.now() - cached.loadedAt < 5 * 60_000)) {
+    // Rust owns archive completeness/retention. An old month in this UI cache may
+    // still be incomplete, so revisit the backend after the same short TTL.
+    if (!forceRefresh && cached && Date.now() - cached.loadedAt < GALLERY_CACHE_TTL_MS) {
       setGalleryRecords(cached.records);
       setGalleryLoading(false);
       setGalleryError("");
@@ -513,6 +533,7 @@ function App() {
       listen<string>("software-update-failed", (event) => {
         setDownloadingUpdate(false);
         setUpdateProgress(null);
+        setUpdateInfo((current) => current?.updateAvailable ? current : null);
         setUpdateFeedback({ kind: "error", text: `下载更新失败：${event.payload}` });
       }),
       listen<string>("software-update-ready", (event) => {
@@ -671,6 +692,22 @@ function App() {
     }
   };
 
+  const showUpdateResult = (result: UpdateCheck, downloadRequested: boolean) => {
+    setUpdateInfo(result);
+    setUpdateProgress(result.readyToRestart ? 100 : null);
+    if (result.readyToRestart) {
+      setUpdateFeedback({ kind: "success", text: `v${result.latestVersion} 已下载完成，重启应用即可安装` });
+    } else if (result.updateAvailable) {
+      setUpdateFeedback(downloadRequested
+        ? { kind: "error", text: `发现新版本 v${result.latestVersion}，但未能自动下载，请重试或前往下载页手动安装` }
+        : { kind: "success", text: `发现新版本 v${result.latestVersion}` });
+    } else {
+      setUpdateFeedback({ kind: "success", text: `当前已是最新版本 v${result.currentVersion}` });
+      if (settingsOpenRef.current) scheduleUpdateStatusReset();
+      else clearUpdateStatus();
+    }
+  };
+
   const checkForUpdates = async () => {
     if (!isTauri()) {
       await openExternal(GITEE_RELEASES);
@@ -682,17 +719,7 @@ function App() {
     setUpdateFeedback({ kind: "info", text: "正在连接更新服务…" });
     try {
       const result = await invoke<UpdateCheck>("prepare_software_update", { download: false });
-      setUpdateInfo(result);
-      setUpdateFeedback({
-        kind: "success",
-        text: result.updateAvailable
-          ? `发现新版本 v${result.latestVersion}`
-          : `当前已是最新版本 v${result.currentVersion}`,
-      });
-      if (!result.updateAvailable) {
-        if (settingsOpenRef.current) scheduleUpdateStatusReset();
-        else clearUpdateStatus();
-      }
+      showUpdateResult(result, false);
     } catch (reason) {
       if (settingsOpenRef.current) {
         setUpdateFeedback({
@@ -712,14 +739,10 @@ function App() {
     setUpdateFeedback({ kind: "info", text: "正在下载并校验更新包…" });
     try {
       const result = await invoke<UpdateCheck>("prepare_software_update", { download: true });
-      setUpdateInfo(result);
-      if (result.readyToRestart) {
-        setUpdateFeedback({
-          kind: "success",
-          text: `v${result.latestVersion} 已下载完成，重启应用即可安装`,
-        });
-      }
+      showUpdateResult(result, true);
     } catch (reason) {
+      setUpdateInfo((current) => current?.updateAvailable ? current : null);
+      setUpdateProgress(null);
       setUpdateFeedback({
         kind: "error",
         text: `下载更新失败：${reason instanceof Error ? reason.message : String(reason)}`,
@@ -730,6 +753,11 @@ function App() {
   };
 
   const installSoftwareUpdate = async () => {
+    // The ref also covers two clicks delivered before React disables the button.
+    if (installingUpdateRef.current) return;
+    installingUpdateRef.current = true;
+    setInstallingUpdate(true);
+    cancelUpdateStatusReset();
     setUpdateFeedback({ kind: "info", text: "正在安装更新并重新启动…" });
     try {
       await invoke("install_software_update");
@@ -738,6 +766,9 @@ function App() {
         kind: "error",
         text: `安装更新失败：${reason instanceof Error ? reason.message : String(reason)}`,
       });
+    } finally {
+      installingUpdateRef.current = false;
+      setInstallingUpdate(false);
     }
   };
 
@@ -749,7 +780,7 @@ function App() {
     closeGallery();
     const month = selectedDate.slice(0, 7);
     const cached = galleryCache.current.get(month);
-    const fresh = cached && (month < today.slice(0, 7) || Date.now() - cached.loadedAt < 5 * 60_000);
+    const fresh = cached && Date.now() - cached.loadedAt < GALLERY_CACHE_TTL_MS;
     setGalleryMonth(month);
     setGalleryRecords(fresh ? cached.records : []);
     setGalleryLoading(!fresh);
@@ -768,6 +799,7 @@ function App() {
   };
 
   const selectDockDate = (date: string) => {
+    if (date < MINIMUM_DATE || date > today) return;
     const pendingFavorite = favoritesPendingId !== null;
     if (galleryOpen || favoritesOpen) closeGallery();
     const wasFavorite = favoritePreviewRef.current;
@@ -863,9 +895,16 @@ function App() {
       setSelectedDate(record.date);
     }
 
-    const next = wallpaperRef.current?.date === record.date && wallpaperRef.current.imageUrl === record.imageUrl && wallpaperRef.current.favoriteId === record.favoriteId
+    let next = wallpaperRef.current?.date === record.date && wallpaperRef.current.imageUrl === record.imageUrl && wallpaperRef.current.favoriteId === record.favoriteId
       ? wallpaperRef.current
-      : await loadWallpaper(record.date, record);
+      : null;
+    if (!next) {
+      const loading = loadWallpaper(record.date, record);
+      const request = wallpaperRequest.current;
+      galleryWallpaperRequest.current = request;
+      next = await loading;
+      if (galleryWallpaperRequest.current === request) galleryWallpaperRequest.current = null;
+    }
     if (selectionId !== gallerySelectionId.current) return;
     if (!next) {
       setGalleryPendingDate(null);
@@ -1025,7 +1064,11 @@ function App() {
             pendingId={favoritesPendingId}
             onSelect={(favorite, card) => {
               setFavoritesPendingId(favorite.id);
-              void selectGalleryWallpaper(favoriteWallpaper(favorite, today), card).then(() => setFavoritesPendingId(null));
+              const loading = selectGalleryWallpaper(favoriteWallpaper(favorite, today), card);
+              const selectionId = gallerySelectionId.current;
+              void loading.then(() => {
+                if (selectionId === gallerySelectionId.current) setFavoritesPendingId(null);
+              });
             }}
             onRemove={(favorite) => void removeFavorite(favorite)}
             onImport={(folder) => void importFavorites(folder)}
@@ -1057,12 +1100,12 @@ function App() {
 
       <section className="control-dock" aria-label="壁纸操作">
         <div className="date-navigation">
-          <button className="icon-button" type="button" aria-label="前一天" onClick={() => selectDockDate(addDays(selectedDate, -1))}>
+          <button className="icon-button" type="button" aria-label="前一天" disabled={selectedDate <= MINIMUM_DATE} onClick={() => selectDockDate(addDays(selectedDate, -1))}>
             <ChevronLeft size={20} />
           </button>
           <DatePicker
             value={selectedDate}
-            minimum="2010-01-01"
+            minimum={MINIMUM_DATE}
             maximum={today}
             onChange={selectDockDate}
           />
@@ -1179,14 +1222,15 @@ function App() {
                     </small>
                     {updateFeedback && (
                       <em className={`update-inline-feedback ${updateFeedback.kind}`} role={updateFeedback.kind === "error" ? "alert" : "status"}>
-                        {updateFeedback.kind === "success" ? <CheckCircle2 size={14} /> : updateFeedback.kind === "error" ? <Info size={14} /> : <LoaderCircle className={checkingUpdate || downloadingUpdate ? "spin" : undefined} size={14} />}
+                        {updateFeedback.kind === "success" ? <CheckCircle2 size={14} /> : updateFeedback.kind === "error" ? <Info size={14} /> : <LoaderCircle className={checkingUpdate || downloadingUpdate || installingUpdate ? "spin" : undefined} size={14} />}
                         {updateFeedback.text}
                       </em>
                     )}
                   </span>
                   {updateInfo?.readyToRestart ? (
-                    <button className="settings-action accent" type="button" onClick={() => void installSoftwareUpdate()}>
-                      <RefreshCw size={16} />重启并更新
+                    <button className="settings-action accent" type="button" disabled={installingUpdate} onClick={() => void installSoftwareUpdate()}>
+                      {installingUpdate ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
+                      {installingUpdate ? "正在安装" : updateFeedback?.kind === "error" ? "重试安装" : "重启并更新"}
                     </button>
                   ) : updateInfo?.updateAvailable ? (
                     <button className="settings-action accent" type="button" disabled={downloadingUpdate} onClick={() => void downloadSoftwareUpdate()}>
@@ -1194,7 +1238,7 @@ function App() {
                       {downloadingUpdate ? "下载中" : "下载更新"}
                     </button>
                   ) : (
-                    <button className="settings-action" type="button" disabled={checkingUpdate || Boolean(updateInfo)} onClick={() => void checkForUpdates()}>
+                    <button className="settings-action" type="button" disabled={checkingUpdate || downloadingUpdate || installingUpdate || Boolean(updateInfo)} onClick={() => void checkForUpdates()}>
                       {checkingUpdate ? <LoaderCircle className="spin" size={16} /> : updateInfo ? <CheckCircle2 size={16} /> : <RefreshCw size={16} />}
                       {checkingUpdate ? "检查中" : updateInfo ? "已是最新" : "检查更新"}
                     </button>
@@ -1206,6 +1250,7 @@ function App() {
                     type="checkbox"
                     role="switch"
                     checked={settings.autoDownloadUpdates}
+                    disabled={installingUpdate}
                     onChange={(event) => {
                       const enabled = event.target.checked;
                       void updateSettings({ autoDownloadUpdates: enabled });

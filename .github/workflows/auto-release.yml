@@ -13,6 +13,7 @@ permissions:
 concurrency:
   group: auto-release-main
   cancel-in-progress: false
+  queue: max
 
 jobs:
   tag-and-dispatch:
@@ -33,49 +34,18 @@ jobs:
         id: candidate
         env:
           TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          main_sha="$(git ls-remote --exit-code origin refs/heads/main | cut -f1)"
-          if [ "$main_sha" != "$TESTED_SHA" ]; then
-            echo "A newer main commit exists; skipping this build."
-            exit 0
-          fi
-
-          version="$(node -e '
-            const fs = require("node:fs");
-            const version = require("./package.json").version;
-            const npmLock = require("./package-lock.json");
-            const tauri = require("./src-tauri/tauri.conf.json");
-            const cargo = fs.readFileSync("src-tauri/Cargo.toml", "utf8");
-            const cargoLock = fs.readFileSync("src-tauri/Cargo.lock", "utf8");
-            const cargoVersion = cargo.match(/^\[package\]\s*\nname = "my-bing-wallpaper"\s*\nversion = "([^"]+)"/m)?.[1];
-            const cargoLockVersion = cargoLock.match(/\[\[package\]\]\s*name = "my-bing-wallpaper"\s*version = "([^"]+)"/)?.[1];
-            if (!/^\d+\.\d+\.\d+$/.test(version) ||
-                npmLock.version !== version || npmLock.packages[""].version !== version ||
-                tauri.version !== version || cargoVersion !== version || cargoLockVersion !== version) {
-              throw new Error("Application version fields do not match");
-            }
-            process.stdout.write(version);
-          ')"
-          tag="v$version"
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-            echo "$tag already exists; skipping release."
-            exit 0
-          else
-            status=$?
-            if [ "$status" -ne 2 ]; then
-              exit "$status"
-            fi
-          fi
-
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/scripts/auto-release-candidate.mjs
       - name: Tag tested commit and start Release
         if: steps.candidate.outputs.should_release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.candidate.outputs.tag }}
+          CREATE_TAG: ${{ steps.candidate.outputs.create_tag }}
           TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          git tag "$TAG" "$TESTED_SHA"
-          git push origin "refs/tags/$TAG"
+          if [ "$CREATE_TAG" = "true" ]; then
+            git tag "$TAG" "$TESTED_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
           gh workflow run release.yml --ref "$TAG"

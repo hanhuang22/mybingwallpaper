@@ -1,7 +1,7 @@
 {
   "name": "my-bing-wallpaper",
   "private": true,
-  "version": "1.2.7",
+  "version": "1.2.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.5",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",

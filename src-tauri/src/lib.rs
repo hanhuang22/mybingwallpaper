@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs,
+    future::Future,
+    io::{Cursor, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},
@@ -31,6 +33,8 @@ use url::Url;
 
 const ARCHIVE_BASE: &str = "https://my-bing-wallpaper.oss-cn-beijing.aliyuncs.com/month";
 const INCOMPLETE_CURRENT_MONTH_TTL: Duration = Duration::from_secs(5 * 60);
+const MAX_IMAGE_BYTES: usize = 50 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION: u32 = 16_384;
 const GITEE_LATEST_RELEASE: &str =
     "https://gitee.com/api/v5/repos/Hyman25/mybingwallpaper/releases/latest";
 const GITHUB_LATEST_RELEASE: &str =
@@ -360,7 +364,44 @@ fn current_month_cache_is_fresh(
 ) -> bool {
     let current_month = today.format("%Y%m").to_string();
     if month < current_month.as_str() {
-        return true;
+        let Ok(first_day) = NaiveDate::parse_from_str(&format!("{month}01"), "%Y%m%d") else {
+            return false;
+        };
+        let mut day = first_day;
+        let mut complete = true;
+        loop {
+            complete &= records
+                .get(&day.format("%Y%m%d").to_string())
+                .is_some_and(|record| {
+                    !record.imgtitle.trim().is_empty()
+                        && !record.imgdesc.trim().is_empty()
+                        && image_url(&record.imgurl).is_ok()
+                });
+            let Some(next) = day.succ_opt() else {
+                return false;
+            };
+            day = next;
+            if day.format("%Y%m").to_string() != month {
+                break;
+            }
+        }
+        if complete {
+            return true;
+        }
+        // A cache taken before the month ended may lack its final days. Even a
+        // successful fetch just after midnight can precede the OSS publishing job.
+        // During the first day of the next month, keep retrying with a short TTL.
+        // Older archives can legitimately have gaps; a successful fetch after this
+        // publication grace period seals them without requiring a complete calendar.
+        let fetched_day = chrono::DateTime::<Local>::from(modified).date_naive();
+        let seal_after = day.succ_opt().unwrap_or(day);
+        if fetched_day >= seal_after && modified <= now {
+            return true;
+        }
+        return fetched_day >= day
+            && now
+                .duration_since(modified)
+                .is_ok_and(|age| age < INCOMPLETE_CURRENT_MONTH_TTL);
     }
     if month > current_month.as_str() {
         return false;
@@ -403,6 +444,27 @@ impl MonthArchiveCache {
         month: &str,
         force_refresh: bool,
     ) -> Result<HashMap<String, RemoteWallpaper>, String> {
+        self.get_with_fetch(
+            month,
+            force_refresh,
+            || (SystemTime::now(), Local::now().date_naive()),
+            || fetch_month_archive(client, month),
+        )
+        .await
+    }
+
+    async fn get_with_fetch<F, Fut, C>(
+        &self,
+        month: &str,
+        force_refresh: bool,
+        clock: C,
+        fetch: F,
+    ) -> Result<HashMap<String, RemoteWallpaper>, String>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<(HashMap<String, RemoteWallpaper>, Vec<u8>), String>>,
+        C: FnOnce() -> (SystemTime, NaiveDate),
+    {
         let month = validate_month(month)?;
         let month_lock = {
             let mut locks = self
@@ -415,24 +477,21 @@ impl MonthArchiveCache {
                 .clone()
         };
         let _guard = month_lock.lock().await;
+        // Determine freshness after waiting for any in-flight fetch. Capturing the
+        // clock before this lock would make its newly written cache look future-dated.
+        let (now, today) = clock();
         let cached = self.read(&month);
         if let Some((records, modified)) = &cached {
             if !force_refresh
-                && current_month_cache_is_fresh(
-                    &month,
-                    records,
-                    *modified,
-                    SystemTime::now(),
-                    Local::now().date_naive(),
-                )
+                && current_month_cache_is_fresh(&month, records, *modified, now, today)
             {
                 return Ok(records.clone());
             }
         }
 
-        match fetch_month_archive(client, &month).await {
+        match fetch().await {
             Ok((records, bytes)) => {
-                if let Err(error) = fs::write(self.path(&month), bytes) {
+                if let Err(error) = atomic_write(&self.path(&month), &bytes) {
                     eprintln!("无法写入月度壁纸缓存：{error}");
                 }
                 Ok(records)
@@ -667,22 +726,93 @@ async fn download_image(client: &Client, image: &str, destination: &Path) -> Res
         .error_for_status()
         .map_err(|error| format!("壁纸服务器异常：{error}"))?;
 
-    if let Some(size) = response.content_length() {
-        if size > 50 * 1024 * 1024 {
+    let bytes = read_image_response(response, MAX_IMAGE_BYTES).await?;
+    let destination = destination.to_path_buf();
+    tauri::async_runtime::spawn_blocking(move || save_validated_image(&destination, &bytes))
+        .await
+        .map_err(|error| format!("图片校验任务失败：{error}"))?
+}
+
+async fn read_image_response(
+    mut response: reqwest::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, String> {
+    if response
+        .content_length()
+        .is_some_and(|size| size > max_bytes as u64)
+    {
+        return Err("壁纸文件超过 50 MB 限制".to_string());
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| format!("读取壁纸失败：{error}"))?
+    {
+        if chunk.len() > max_bytes.saturating_sub(bytes.len()) {
             return Err("壁纸文件超过 50 MB 限制".to_string());
         }
+        bytes.extend_from_slice(&chunk);
     }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|error| format!("读取壁纸失败：{error}"))?;
-    if bytes.len() < 1024 || bytes.len() > 50 * 1024 * 1024 {
-        return Err("壁纸文件大小异常".to_string());
+    Ok(bytes)
+}
+
+fn validate_image_bytes(bytes: &[u8]) -> Result<(), String> {
+    if bytes.is_empty() || bytes.len() > MAX_IMAGE_BYTES {
+        return Err("壁纸文件为空或超过 50 MB 限制".to_string());
     }
+    let mut reader = image::ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|error| format!("无法识别壁纸格式：{error}"))?;
+    reader.limits(image_decode_limits());
+    reader
+        .decode()
+        .map_err(|error| format!("壁纸图片无效或尺寸过大：{error}"))?;
+    Ok(())
+}
+
+fn image_decode_limits() -> image::Limits {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_IMAGE_DIMENSION);
+    limits.max_image_height = Some(MAX_IMAGE_DIMENSION);
+    limits.max_alloc = Some(256 * 1024 * 1024);
+    limits
+}
+
+fn save_validated_image(destination: &Path, bytes: &[u8]) -> Result<(), String> {
+    validate_image_bytes(bytes)?;
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(|error| format!("无法创建壁纸目录：{error}"))?;
     }
-    fs::write(destination, bytes).map_err(|error| format!("无法写入壁纸文件：{error}"))
+    atomic_write(destination, bytes).map_err(|error| format!("无法保存壁纸文件：{error}"))
+}
+
+fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let mut temporary_name = path.file_name().ok_or("文件路径无效")?.to_os_string();
+    temporary_name.push(format!(
+        ".{}.{:016x}.tmp",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let temporary = path.with_file_name(temporary_name);
+    let result = (|| {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .map_err(|error| format!("无法创建临时文件：{error}"))?;
+        file.write_all(bytes)
+            .and_then(|_| file.sync_all())
+            .map_err(|error| format!("无法写入临时文件：{error}"))?;
+        drop(file);
+        // std::fs::rename replaces an existing file on both Unix and Windows.
+        // Never remove the destination first: an error must preserve the old copy.
+        fs::rename(&temporary, path).map_err(|error| format!("无法替换文件：{error}"))
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
 }
 
 fn read_settings(path: &Path) -> Settings {
@@ -719,7 +849,7 @@ fn write_settings(path: &Path, settings: &Settings) -> Result<(), String> {
     }
     let contents =
         serde_json::to_vec_pretty(settings).map_err(|error| format!("配置序列化失败：{error}"))?;
-    fs::write(path, contents).map_err(|error| format!("配置保存失败：{error}"))
+    atomic_write(path, &contents).map_err(|error| format!("配置保存失败：{error}"))
 }
 
 fn effective_save_directory(settings: &Settings) -> Result<PathBuf, String> {
@@ -789,7 +919,12 @@ fn remember_daily_wallpaper(state: &AppState, date: &str, image_url: &str) -> Re
 }
 
 fn cached_wallpaper_image_is_usable(path: &Path) -> bool {
-    fs::metadata(path).is_ok_and(|metadata| metadata.is_file() && metadata.len() >= 1024)
+    if !fs::metadata(path).is_ok_and(|metadata| {
+        metadata.is_file() && metadata.len() > 0 && metadata.len() <= MAX_IMAGE_BYTES as u64
+    }) {
+        return false;
+    }
+    fs::read(path).is_ok_and(|bytes| validate_image_bytes(&bytes).is_ok())
 }
 
 fn wallpaper_cache_path(cache: &Path, date: &str, image_url: &str) -> PathBuf {
@@ -1084,23 +1219,55 @@ async fn prepare_software_update<R: Runtime>(
 
 #[tauri::command]
 async fn install_software_update<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    let pending_update = app.state::<AppState>().pending_software_update.clone();
-    let Some(pending) = pending_update.lock().await.take() else {
-        return Err("更新尚未下载完成".to_string());
-    };
     if let Some(window) = app.get_webview_window("main") {
         save_normal_window_size(&window.as_ref().window());
     }
-    pending
-        .update
-        .install(&pending.bytes)
-        .map_err(|error| format!("安装更新失败：{error}"))?;
+    let state = app.state::<AppState>();
+    install_pending_update(
+        state.software_update_lock.clone(),
+        state.pending_software_update.clone(),
+        |pending| {
+            pending
+                .update
+                .install(&pending.bytes)
+                .map_err(|error| format!("安装更新失败：{error}"))
+        },
+    )
+    .await?;
 
     #[cfg(target_os = "macos")]
     app.restart();
 
     #[allow(unreachable_code)]
     Ok(())
+}
+
+async fn install_pending_update<T, F>(
+    operation_lock: Arc<tokio::sync::Mutex<()>>,
+    pending_update: Arc<tokio::sync::Mutex<Option<T>>>,
+    install: F,
+) -> Result<(), String>
+where
+    T: Send + 'static,
+    F: FnOnce(&T) -> Result<(), String> + Send + 'static,
+{
+    // Reject a duplicate click instead of queuing a second installation/retry.
+    let operation_guard = operation_lock
+        .try_lock_owned()
+        .map_err(|_| "正在检查、下载或安装更新，请稍后重试".to_string())?;
+    let mut pending = pending_update.lock_owned().await;
+    if pending.is_none() {
+        return Err("更新尚未下载完成".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let _operation_guard = operation_guard;
+        install(pending.as_ref().expect("checked pending update"))?;
+        // Failed (or panicking) installers leave the verified package available.
+        *pending = None;
+        Ok(())
+    })
+    .await
+    .map_err(|error| format!("更新安装任务失败：{error}"))?
 }
 
 #[tauri::command]
@@ -1178,10 +1345,24 @@ async fn choose_save_directory<R: Runtime>(
     if !folder.is_dir() {
         return Err("所选保存位置不是文件夹".to_string());
     }
-    let mut settings = read_settings(&state.config_path);
-    settings.save_directory = Some(folder.clone());
-    write_settings(&state.config_path, &settings)?;
+    persist_save_directory(&state.config_path, state.auto_update_lock.clone(), &folder).await?;
     Ok(Some(folder.to_string_lossy().into_owned()))
+}
+
+async fn persist_save_directory(
+    config_path: &Path,
+    update_lock: Arc<tokio::sync::Mutex<()>>,
+    folder: &Path,
+) -> Result<(), String> {
+    // Do not hold the update/configuration lock while the native dialog is open.
+    // Re-read only after acquiring it, so other settings cannot restore an old path.
+    let _guard = update_lock.lock().await;
+    if !folder.is_dir() {
+        return Err("所选保存位置不是文件夹".to_string());
+    }
+    let mut settings = read_settings(config_path);
+    settings.save_directory = Some(folder.to_path_buf());
+    write_settings(config_path, &settings)
 }
 
 #[tauri::command]
@@ -1668,21 +1849,79 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        bing_image_id, cached_wallpaper_image_is_usable, current_month_cache_is_fresh,
-        effective_save_directory, launched_in_background, opens_main_window_on_tray_click,
-        parse_version, prepare_save_directory, read_daily_wallpaper_state, should_skip_auto_update,
-        trusted_external_url, validate_month, wallpaper_cache_path, wallpaper_from_live_bing,
-        write_daily_wallpaper_state, BingArchive, BingModel, MonthArchiveCache, RemoteWallpaper,
-        Settings,
+        atomic_write, bing_image_id, cached_wallpaper_image_is_usable,
+        current_month_cache_is_fresh, effective_save_directory, install_pending_update,
+        launched_in_background, opens_main_window_on_tray_click, parse_version,
+        persist_save_directory, prepare_save_directory, read_daily_wallpaper_state,
+        read_image_response, read_settings, save_validated_image, should_skip_auto_update,
+        trusted_external_url, validate_image_bytes, validate_month, wallpaper_cache_path,
+        wallpaper_from_live_bing, write_daily_wallpaper_state, write_settings, BingArchive,
+        BingModel, MonthArchiveCache, RemoteWallpaper, Settings, MAX_IMAGE_DIMENSION,
     };
-    use chrono::NaiveDate;
+    use chrono::{Local, NaiveDate, TimeZone};
     use std::{
         collections::HashMap,
         fs,
-        path::Path,
+        path::{Path, PathBuf},
+        sync::Arc,
         time::{Duration, SystemTime},
     };
     use tauri::tray::{MouseButton, MouseButtonState};
+
+    fn test_directory(label: &str) -> PathBuf {
+        let directory = std::env::temp_dir().join(format!(
+            "mybingwallpaper-{label}-{}-{:016x}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        directory
+    }
+
+    fn local_system_time(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> SystemTime {
+        Local
+            .with_ymd_and_hms(year, month, day, hour, minute, 0)
+            .single()
+            .unwrap()
+            .into()
+    }
+
+    fn september_archive(days: u32) -> (HashMap<String, RemoteWallpaper>, Vec<u8>) {
+        let json: serde_json::Map<String, serde_json::Value> = (1..=days)
+            .map(|day| {
+                (
+                    format!("202609{day:02}"),
+                    serde_json::json!({
+                        "imgtitle": "壁纸", "imgdesc": "说明",
+                        "imgurl": format!("https://cn.bing.com/th?id=OHR.Day{day}_UHD.jpg")
+                    }),
+                )
+            })
+            .collect();
+        let bytes = serde_json::to_vec(&json).unwrap();
+        (serde_json::from_slice(&bytes).unwrap(), bytes)
+    }
+
+    fn set_modified(path: &Path, modified: SystemTime) {
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_times(fs::FileTimes::new().set_modified(modified))
+            .unwrap();
+    }
+
+    fn small_png(width: u32, height: u32) -> Vec<u8> {
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            width,
+            height,
+            image::Rgb([20, 90, 150]),
+        ))
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .unwrap();
+        bytes.into_inner()
+    }
 
     #[test]
     fn accepts_only_real_archive_months() {
@@ -1758,17 +1997,152 @@ mod tests {
     #[test]
     fn historical_archive_remains_fresh_and_future_archive_does_not() {
         let today = NaiveDate::from_ymd_opt(2026, 9, 29).unwrap();
-        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100_000);
+        let now = local_system_time(2026, 9, 29, 12, 0);
         let records = HashMap::new();
         assert!(current_month_cache_is_fresh(
             "202608",
             &records,
-            SystemTime::UNIX_EPOCH,
+            local_system_time(2026, 9, 2, 12, 0),
             now,
             today
         ));
         assert!(!current_month_cache_is_fresh(
             "202610", &records, now, now, today
+        ));
+    }
+
+    #[tokio::test]
+    async fn unfinished_month_refreshes_after_rollover_and_waits_for_final_oss_records() {
+        let directory = test_directory("archive-rollover");
+        let cache = MonthArchiveCache::new(directory.clone());
+        let path = cache.path("202609");
+        let (_, partial) = september_archive(29);
+        fs::write(&path, &partial).unwrap();
+        set_modified(&path, local_system_time(2026, 9, 30, 23, 59));
+        let today = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+        let first_fetch = local_system_time(2026, 10, 1, 0, 1);
+
+        // 00:01 is before the 00:10 publication job: even a successful response
+        // can still omit the month's last day and must not seal that archive.
+        let records = cache
+            .get_with_fetch(
+                "202609",
+                false,
+                || (first_fetch, today),
+                || async { Ok(september_archive(29)) },
+            )
+            .await
+            .unwrap();
+        assert_eq!(records.len(), 29);
+        set_modified(&path, first_fetch);
+        let refreshed = cache
+            .get_with_fetch(
+                "202609",
+                false,
+                || (first_fetch + Duration::from_secs(10 * 60), today),
+                || async { Ok(september_archive(30)) },
+            )
+            .await
+            .unwrap();
+        assert!(refreshed.contains_key("20260930"));
+        set_modified(&path, first_fetch + Duration::from_secs(10 * 60));
+
+        // The complete result also remains usable after reopening the disk cache.
+        let reopened = MonthArchiveCache::new(directory.clone());
+        let reused = reopened
+            .get_with_fetch(
+                "202609",
+                false,
+                || (first_fetch + Duration::from_secs(60 * 60), today),
+                || async {
+                    panic!("a complete historical archive must not be fetched again");
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(reused.len(), 30);
+        fs::remove_file(path).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn failed_rollover_refresh_keeps_stale_data_unsealed_and_retries_later() {
+        let directory = test_directory("archive-offline");
+        let cache = MonthArchiveCache::new(directory.clone());
+        let path = cache.path("202609");
+        let (_, bytes) = september_archive(29);
+        fs::write(&path, bytes).unwrap();
+        let before_rollover = local_system_time(2026, 9, 30, 12, 0);
+        set_modified(&path, before_rollover);
+        let now = local_system_time(2026, 10, 1, 12, 0);
+        let today = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+        let fallback = cache
+            .get_with_fetch(
+                "202609",
+                false,
+                || (now, today),
+                || async { Err("offline".into()) },
+            )
+            .await
+            .unwrap();
+        assert_eq!(fallback.len(), 29);
+        let (still_partial, modified) = cache.read("202609").unwrap();
+        assert_eq!(modified, before_rollover);
+        assert!(!current_month_cache_is_fresh(
+            "202609",
+            &still_partial,
+            modified,
+            now,
+            today
+        ));
+        let recovered = cache
+            .get_with_fetch(
+                "202609",
+                false,
+                || (now, today),
+                || async { Ok(september_archive(30)) },
+            )
+            .await
+            .unwrap();
+        assert_eq!(recovered.len(), 30);
+        fs::remove_file(path).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn sparse_old_archives_seal_only_after_the_publication_grace_period() {
+        let (records, _) = september_archive(29);
+        let first_day = local_system_time(2026, 10, 1, 0, 1);
+        let today = NaiveDate::from_ymd_opt(2026, 10, 2).unwrap();
+        let now = local_system_time(2026, 10, 2, 12, 0);
+        assert!(!current_month_cache_is_fresh(
+            "202609", &records, first_day, now, today
+        ));
+        assert!(current_month_cache_is_fresh(
+            "202609", &records, now, now, today
+        ));
+        assert!(current_month_cache_is_fresh(
+            "202609",
+            &records,
+            first_day,
+            first_day + Duration::from_secs(299),
+            NaiveDate::from_ymd_opt(2026, 10, 1).unwrap()
+        ));
+    }
+
+    #[test]
+    fn historical_images_without_final_descriptions_are_not_sealed_early() {
+        let (mut records, _) = september_archive(30);
+        records.get_mut("20260930").unwrap().imgdesc.clear();
+        let modified = local_system_time(2026, 9, 30, 23, 59);
+        let now = local_system_time(2026, 10, 1, 0, 11);
+        let today = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+        assert!(!current_month_cache_is_fresh(
+            "202609", &records, modified, now, today
+        ));
+        records.get_mut("20260930").unwrap().imgdesc = "最终说明".into();
+        assert!(current_month_cache_is_fresh(
+            "202609", &records, modified, now, today
         ));
     }
 
@@ -1878,7 +2252,7 @@ mod tests {
     }
 
     #[test]
-    fn only_reuses_nonempty_cached_wallpaper_images() {
+    fn only_reuses_decodable_cached_wallpaper_images() {
         let path = std::env::temp_dir().join(format!(
             "mybingwallpaper-image-test-{}-{}.jpg",
             std::process::id(),
@@ -1891,6 +2265,8 @@ mod tests {
         fs::write(&path, [0_u8; 1023]).unwrap();
         assert!(!cached_wallpaper_image_is_usable(&path));
         fs::write(&path, [0_u8; 1024]).unwrap();
+        assert!(!cached_wallpaper_image_is_usable(&path));
+        fs::write(&path, small_png(20, 10)).unwrap();
         assert!(cached_wallpaper_image_is_usable(&path));
         fs::remove_file(path).unwrap();
     }
@@ -1905,6 +2281,184 @@ mod tests {
             corrected,
             wallpaper_cache_path(cache, "2026-09-28", "https://bing.com/AmberHall.jpg")
         );
+    }
+
+    #[test]
+    fn invalid_or_oversized_images_do_not_replace_a_valid_file() {
+        let directory = test_directory("validated-image");
+        let path = directory.join("wallpaper.jpg");
+        let original = small_png(20, 10);
+        save_validated_image(&path, &original).unwrap();
+        assert!(save_validated_image(&path, b"<html>not an image</html>").is_err());
+        let truncated = &original[..original.len() / 2];
+        assert!(save_validated_image(&path, truncated).is_err());
+        assert!(validate_image_bytes(&small_png(MAX_IMAGE_DIMENSION + 1, 1)).is_err());
+        assert_eq!(fs::read(&path).unwrap(), original);
+
+        let replacement = small_png(30, 12);
+        save_validated_image(&path, &replacement).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), replacement);
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+        fs::remove_file(path).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn failed_atomic_replacement_keeps_existing_data_and_removes_temporary_file() {
+        let directory = test_directory("atomic-failure");
+        let target_directory = directory.join("existing-directory");
+        fs::create_dir(&target_directory).unwrap();
+        assert!(atomic_write(&target_directory, b"new contents").is_err());
+        assert!(target_directory.is_dir());
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+        fs::remove_dir(target_directory).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn streamed_image_limit_applies_without_a_content_length_header() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 2048];
+            let _ = stream.read(&mut request);
+            let _ = stream.write_all(
+                b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n",
+            );
+            for _ in 0..3 {
+                if stream.write_all(b"200\r\n").is_err()
+                    || stream.write_all(&[7_u8; 512]).is_err()
+                    || stream.write_all(b"\r\n").is_err()
+                {
+                    return;
+                }
+            }
+            let _ = stream.write_all(b"0\r\n\r\n");
+        });
+        let response = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(3))
+            .build()
+            .unwrap()
+            .get(format!("http://{address}/image"))
+            .send()
+            .await
+            .unwrap();
+        assert!(response.content_length().is_none());
+        assert!(read_image_response(response, 1024).await.is_err());
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn saving_a_directory_waits_for_other_settings_then_merges_the_latest_values() {
+        let directory = test_directory("settings-serialization");
+        let config = directory.join("settings.json");
+        let old_folder = directory.join("old");
+        let new_folder = directory.join("new");
+        fs::create_dir(&old_folder).unwrap();
+        fs::create_dir(&new_folder).unwrap();
+        write_settings(
+            &config,
+            &Settings {
+                save_directory: Some(old_folder),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        let other_settings_guard = lock.clone().lock_owned().await;
+        let mut other_settings = read_settings(&config);
+        let config_copy = config.clone();
+        let new_copy = new_folder.clone();
+        let save_lock = lock.clone();
+        let save = tokio::spawn(async move {
+            persist_save_directory(&config_copy, save_lock, &new_copy).await
+        });
+        tokio::task::yield_now().await;
+        assert!(!save.is_finished());
+        other_settings.theme = "dark".into();
+        write_settings(&config, &other_settings).unwrap();
+        drop(other_settings_guard);
+        save.await.unwrap().unwrap();
+        let actual = read_settings(&config);
+        assert_eq!(actual.theme, "dark");
+        assert_eq!(actual.save_directory, Some(new_folder));
+        fs::remove_file(config).unwrap();
+        fs::remove_dir(directory.join("old")).unwrap();
+        fs::remove_dir(directory.join("new")).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn failed_installs_keep_the_verified_package_for_a_successful_retry() {
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        let pending = Arc::new(tokio::sync::Mutex::new(Some(vec![1, 2, 3])));
+        let error = install_pending_update(lock.clone(), pending.clone(), |bytes| {
+            assert_eq!(bytes, &[1, 2, 3]);
+            Err("permission denied".into())
+        })
+        .await
+        .unwrap_err();
+        assert!(error.contains("permission denied"));
+        assert_eq!(*pending.lock().await, Some(vec![1, 2, 3]));
+        install_pending_update(lock.clone(), pending.clone(), |bytes| {
+            assert_eq!(bytes, &[1, 2, 3]);
+            Ok(())
+        })
+        .await
+        .unwrap();
+        assert!(pending.lock().await.is_none());
+        assert!(install_pending_update(lock, pending, |_| Ok(()))
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn panicking_installer_also_keeps_the_package_and_releases_the_operation_lock() {
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        let pending = Arc::new(tokio::sync::Mutex::new(Some(vec![1, 2, 3])));
+        assert!(install_pending_update(lock.clone(), pending.clone(), |_| {
+            panic!("simulated installer panic");
+        })
+        .await
+        .is_err());
+        assert_eq!(*pending.lock().await, Some(vec![1, 2, 3]));
+        install_pending_update(lock, pending.clone(), |_| Ok(()))
+            .await
+            .unwrap();
+        assert!(pending.lock().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_duplicate_install_is_rejected_instead_of_queued() {
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        let pending = Arc::new(tokio::sync::Mutex::new(Some(vec![4, 5, 6])));
+        let (started_sender, started_receiver) = tokio::sync::oneshot::channel();
+        let (finish_sender, finish_receiver) = std::sync::mpsc::channel();
+        let first_lock = lock.clone();
+        let first_pending = pending.clone();
+        let first = tokio::spawn(async move {
+            install_pending_update(first_lock, first_pending, move |_| {
+                started_sender.send(()).unwrap();
+                finish_receiver
+                    .recv_timeout(Duration::from_secs(3))
+                    .unwrap();
+                Err("first attempt failed".into())
+            })
+            .await
+        });
+        started_receiver.await.unwrap();
+        let duplicate = install_pending_update(lock.clone(), pending.clone(), |_| {
+            panic!("the duplicate installer must never run");
+        })
+        .await
+        .unwrap_err();
+        assert!(duplicate.contains("正在"));
+        finish_sender.send(()).unwrap();
+        assert!(first.await.unwrap().is_err());
+        assert_eq!(*pending.lock().await, Some(vec![4, 5, 6]));
     }
 
     #[test]

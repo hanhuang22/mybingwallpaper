@@ -81,9 +81,7 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
 
 fn decode_image(bytes: &[u8], format: ImageFormat) -> Result<DynamicImage, String> {
     let mut reader = ImageReader::with_format(Cursor::new(bytes), format);
-    let mut limits = image::Limits::default();
-    limits.max_alloc = Some(256 * 1024 * 1024);
-    reader.limits(limits);
+    reader.limits(crate::image_decode_limits());
     let mut decoder = reader
         .into_decoder()
         .map_err(|error| format!("图片无法解码：{error}"))?;
@@ -98,24 +96,23 @@ fn decode_image(bytes: &[u8], format: ImageFormat) -> Result<DynamicImage, Strin
 
 pub fn desktop_copy(favorite: &Favorite, cache: &Path) -> Result<PathBuf, String> {
     let destination = cache.join(format!("favorite-{}.jpg", favorite.id));
-    if fs::metadata(&destination).is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0) {
+    if crate::cached_wallpaper_image_is_usable(&destination) {
         return Ok(destination);
     }
     let bytes =
         fs::read(&favorite.image_path).map_err(|error| format!("无法读取收藏图片：{error}"))?;
     let format = image::guess_format(&bytes).map_err(|_| "无法识别收藏图片格式")?;
-    let temporary = destination.with_extension("tmp.jpg");
-    if format == ImageFormat::Jpeg {
-        fs::write(&temporary, bytes).map_err(|error| format!("无法复制壁纸：{error}"))?;
+    let desktop_bytes = if format == ImageFormat::Jpeg {
+        bytes
     } else {
         let image = decode_image(&bytes, format)?.to_rgb8();
-        let file =
-            fs::File::create(&temporary).map_err(|error| format!("无法保存桌面图片：{error}"))?;
-        image::codecs::jpeg::JpegEncoder::new_with_quality(file, 95)
+        let mut converted = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut converted, 95)
             .encode_image(&image)
             .map_err(|error| format!("无法转换桌面图片：{error}"))?;
-    }
-    fs::rename(temporary, &destination).map_err(|error| format!("无法保存桌面图片：{error}"))?;
+        converted
+    };
+    crate::save_validated_image(&destination, &desktop_bytes)?;
     Ok(destination)
 }
 
@@ -402,10 +399,28 @@ mod tests {
             ImageFormat::Jpeg
         );
         assert_eq!(image::image_dimensions(&applied).unwrap(), (20, 10));
+        // A nonempty but corrupt desktop cache must be rebuilt from the original.
+        fs::write(&applied, [0_u8; 2048]).unwrap();
+        assert_eq!(desktop_copy(&favorite, &directory).unwrap(), applied);
+        assert!(crate::cached_wallpaper_image_is_usable(&applied));
+        assert_eq!(fs::read(&favorite.image_path).unwrap(), bytes);
         store.remove(&favorite.id).unwrap();
         assert!(store.list().unwrap().is_empty());
         assert!(!favorite.image_path.exists());
         assert!(applied.exists());
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn local_import_decoder_uses_the_same_image_dimension_limits() {
+        let mut bytes = Cursor::new(Vec::new());
+        DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            crate::MAX_IMAGE_DIMENSION + 1,
+            1,
+            image::Rgb([1, 2, 3]),
+        ))
+        .write_to(&mut bytes, ImageFormat::Png)
+        .unwrap();
+        assert!(decode_image(bytes.get_ref(), ImageFormat::Png).is_err());
     }
 }
